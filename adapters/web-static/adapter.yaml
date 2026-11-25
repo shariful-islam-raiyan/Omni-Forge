@@ -13,5 +13,4 @@ capabilities:
   operations:
     - validate
     - compile
-    - package
   requires: []

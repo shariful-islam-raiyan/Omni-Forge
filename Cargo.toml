@@ -26,6 +26,7 @@ walkdir = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 libc = "0.2"
 ctrlc = "3"
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 [profile.release]
 opt-level = 2

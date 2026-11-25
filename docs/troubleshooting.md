@@ -33,6 +33,9 @@ list of every code in the source — it's the ones you're likely to hit.
 | `E-DEV-PORT-UNAVAILABLE` | `omni dev` could not even allocate an auto-picked free port for a target (very rare — generally means the OS is out of ephemeral ports). | Close other listening processes/retry; if persistent, something unusual is happening at the OS level. |
 | `E-DEVSERVER-SPAWN-FAILED` / `E-DEVSERVER-READY-TIMEOUT` / `E-DEVSERVER-EXITED-BEFORE-READY` / `E-DEVSERVER-EXITED-EARLY` / `E-DEVSERVER-UNEXPECTED-OUTPUT` | A dev-serve-capable target's backend process failed to start or never reported readiness. | The diagnostic includes the process's stderr tail. This is the same family of problem `E-ADAPTER-TIMEOUT`/`E-PYADAPTER-EXECUTION-FAILED` describe for a *build*, just for `omni dev`'s long-running process instead. |
 | `E-DEVSERVER-ARTIFACT-LAYOUT` | An adapter declares a `dev` capability, but this build's output doesn't follow the required "runnable-package convention" (exactly one file under `app/` plus a `run-config.json`). | This indicates an adapter bug, not a project misconfiguration — see [adapter-protocol.md](adapter-protocol.md#dev-serve-capability-adapteryamls-optional-dev-block). |
+| `E-PACKAGE-NOT-BUILT` | `omni package <target>` was run before `omni build <target>` — there's no `dist/<target>/` to archive. | Run `omni build <target>` (or `omni build all`) first. |
+| `E-PACKAGE-UNKNOWN-TARGET` | `omni package <name>` named a target that isn't a recognized OmniForge target name. | Check the spelling, or use `all` to package every enabled target. |
+| `E-PACKAGE-IO` | A filesystem error occurred while reading the build output or writing the zip archive. | The message includes the underlying OS error; check disk space and permissions on the project's `dist/` directory. |
 
 ## General approach
 

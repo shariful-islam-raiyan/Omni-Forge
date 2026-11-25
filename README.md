@@ -404,6 +404,7 @@ walkthrough of all three:
 | `omni build <target\|all> [--allow-partial]` | Builds one target or every enabled target. Writes `dist/<target>/...` and `dist/build-report.json`. Fails (exit 1) if any enabled target has no available adapter, unless `--allow-partial` is passed. |
 | `omni dev [targets...] [--port NAME=PORT]` | Builds and serves every enabled target (or just the ones named) at once. `web`-like targets get a built-in static HTTP server; a target whose adapter declares dev-serve support (today: `backend`) gets a real, supervised, long-lived child process with graceful-then-hard-kill shutdown on Ctrl-C. Ports auto-pick free unless pinned via `omni.yaml` or `--port`. See [docs/dev-workflow.md](docs/dev-workflow.md). |
 | `omni test` | Validates the project and asks each enabled target's adapter to run its `test` operation. No shipped adapter implements `test` yet — reported honestly, never faked. |
+| `omni package <target\|all>` | Archives an already-built target's `dist/<target>/` into `dist/<target>.zip`. Run `omni build <target>` first — packaging and building are separate, explicit steps. Generic across every target; not adapter-specific. |
 | `omni clean` | Removes the project's build output directory, after verifying it resolves strictly inside the project root. |
 
 All commands return a non-zero exit code on failure and print structured,
@@ -537,6 +538,7 @@ omni build all --allow-partial # accept a target with no available adapter
 omni dev                       # build + serve every enabled target, managed lifecycle
 omni dev web backend --port web=5173 --port backend=9000
 omni test                      # honest "no tests implemented" report today
+omni package web                # dist/web.zip, from an already-built target
 omni clean                     # remove dist/, safely scoped to the project root
 ```
 
@@ -548,7 +550,7 @@ development and production behavior.
 
 ```sh
 cargo build --workspace
-cargo test --workspace      # 111 tests: unit + integration + adapter conformance + dev-process lifecycle
+cargo test --workspace      # 115 tests: unit + integration + adapter conformance + dev-process lifecycle
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 bash scripts/verify.sh      # all of the above, plus end-to-end builds of all three examples

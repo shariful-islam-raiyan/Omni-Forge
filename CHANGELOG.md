@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased — Real packaging, and a public release
+
+- New `omni package <target|all>`: archives an already-built target's
+  `dist/<target>/` into a single `dist/<target>.zip`. Generic across any
+  target/adapter (packaging a flat output directory needs no
+  adapter-specific knowledge) — implemented once at the CLI level, not as
+  a new adapter-protocol operation.
+- **Corrected a false capability claim**: `adapters/web-static/adapter.yaml`
+  previously declared `package` as a supported operation despite the
+  `Adapter` trait never having a `package` method and nothing ever
+  dispatching it. Removed the claim; `omni package` above is the real
+  functionality in its place.
+- Added 4 tests (`crates/omni-cli/tests/cli.rs`): a real zip archive is
+  produced and read back (not just checked for existence) with content
+  matching the on-disk build output, `package all`, and the two failure
+  paths (not yet built, unknown target name).
+- Published this repository to GitHub for the first time:
+  https://github.com/shariful-islam-raiyan/Omni-Forge — added a
+  professional README, CONTRIBUTING/SECURITY/CODE_OF_CONDUCT updates,
+  GitHub issue/PR templates, and a root `ROADMAP.md`. Verified the
+  documented `cargo install --git` installation workflow end-to-end
+  (including `omni create`/`check`/`build`/`dev`) from a build produced
+  in a directory with no relationship to the original development tree.
+- Added 115 tests total (was 111), all passing.
+
 ## Unreleased — Unified Application Runtime and Developer Experience
 
 - **`omni dev` is now a real, unified, multi-target dev runtime.**

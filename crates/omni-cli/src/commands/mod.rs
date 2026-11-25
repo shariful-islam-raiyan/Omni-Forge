@@ -5,4 +5,5 @@ pub mod clean;
 pub mod create;
 pub mod dev;
 pub mod doctor;
+pub mod package;
 pub mod test;

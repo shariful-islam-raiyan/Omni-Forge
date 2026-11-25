@@ -4,6 +4,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
+use std::io::Read;
 
 fn bin() -> Command {
     Command::cargo_bin("omni").unwrap()
@@ -285,4 +286,114 @@ fn build_backend_target_executes_real_python_script_end_to_end() {
         .assert()
         .success();
     assert!(!project_dir.join("dist").exists());
+}
+
+#[test]
+fn package_fails_cleanly_when_target_was_never_built() {
+    let dir = tempfile::tempdir().unwrap();
+    bin()
+        .current_dir(dir.path())
+        .args(["create", "demo-site"])
+        .assert()
+        .success();
+    let project_dir = dir.path().join("demo-site");
+
+    bin()
+        .current_dir(&project_dir)
+        .args(["package", "web"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("E-PACKAGE-NOT-BUILT"));
+}
+
+#[test]
+fn package_rejects_unknown_target_name() {
+    let dir = tempfile::tempdir().unwrap();
+    bin()
+        .current_dir(dir.path())
+        .args(["create", "demo-site"])
+        .assert()
+        .success();
+    let project_dir = dir.path().join("demo-site");
+
+    bin()
+        .current_dir(&project_dir)
+        .args(["package", "not-a-real-target"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("E-PACKAGE-UNKNOWN-TARGET"));
+}
+
+#[test]
+fn package_produces_a_real_zip_archive_of_the_built_output() {
+    let dir = tempfile::tempdir().unwrap();
+    bin()
+        .current_dir(dir.path())
+        .args(["create", "demo-site"])
+        .assert()
+        .success();
+    let project_dir = dir.path().join("demo-site");
+
+    bin()
+        .current_dir(&project_dir)
+        .args(["build", "web"])
+        .assert()
+        .success();
+
+    bin()
+        .current_dir(&project_dir)
+        .args(["package", "web"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("packaged target 'web'"));
+
+    let zip_path = project_dir.join("dist/web.zip");
+    assert!(zip_path.is_file(), "dist/web.zip should have been created");
+
+    // Read the archive back for real -- not just checking the file exists,
+    // but that it's a genuine, readable zip containing the real build
+    // output, byte-for-byte matching what's on disk.
+    let file = fs::File::open(&zip_path).unwrap();
+    let mut archive = zip::ZipArchive::new(file).unwrap();
+    let mut names: Vec<String> = (0..archive.len())
+        .map(|i| archive.by_index(i).unwrap().name().unwrap().to_string())
+        .collect();
+    names.sort();
+    assert!(names.contains(&"index.html".to_string()));
+    assert!(names.contains(&"assets/style.css".to_string()));
+    assert!(names.contains(&"build-manifest.json".to_string()));
+
+    let mut zipped_html = String::new();
+    archive
+        .by_name("index.html")
+        .unwrap()
+        .read_to_string(&mut zipped_html)
+        .unwrap();
+    let disk_html = fs::read_to_string(project_dir.join("dist/web/index.html")).unwrap();
+    assert_eq!(zipped_html, disk_html);
+}
+
+#[test]
+fn package_all_packages_every_enabled_target() {
+    let dir = tempfile::tempdir().unwrap();
+    bin()
+        .current_dir(dir.path())
+        .args(["create", "demo-site"])
+        .assert()
+        .success();
+    let project_dir = dir.path().join("demo-site");
+
+    bin()
+        .current_dir(&project_dir)
+        .args(["build", "web"])
+        .assert()
+        .success();
+
+    bin()
+        .current_dir(&project_dir)
+        .args(["package", "all"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("packaged target 'web'"));
+    assert!(project_dir.join("dist/web.zip").is_file());
 }

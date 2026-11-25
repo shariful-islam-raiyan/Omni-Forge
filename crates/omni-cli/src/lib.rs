@@ -62,6 +62,10 @@ pub enum Command {
     },
     /// Run project tests via adapters that support the 'test' operation.
     Test,
+    /// Archive an already-built target's output directory into a single
+    /// distributable .zip file (dist/<target>.zip). Run 'omni build
+    /// <target>' first.
+    Package { target: String },
     /// Remove the project's build output directory.
     Clean,
 }
@@ -101,6 +105,7 @@ pub fn run() -> ExitCode {
         } => commands::build::run(&cwd, &target, allow_partial),
         Command::Dev { targets, port } => commands::dev::run(&cwd, &targets, &port),
         Command::Test => commands::test::run(&cwd),
+        Command::Package { target } => commands::package::run(&cwd, &target),
         Command::Clean => commands::clean::run(&cwd),
     };
 
