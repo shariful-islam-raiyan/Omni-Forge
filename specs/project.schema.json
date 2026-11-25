@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omniforge.dev/project/v1.schema.json",
+  "title": "OmniForge Project Specification v1",
+  "type": "object",
+  "required": ["schema", "project", "targets"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "omniforge.dev/project/v1"
+    },
+    "project": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+        }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["enabled"],
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "entry": { "type": "string", "minLength": 1 },
+          "contract": { "type": "string", "minLength": 1 },
+          "dev": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "directory": { "type": "string", "minLength": 1 }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "output": { "type": "string", "minLength": 1 },
+        "cache": { "type": "boolean" },
+        "parallel": { "type": "boolean" }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strict_adapter_permissions": { "type": "boolean" },
+        "audit_dependencies": { "type": "boolean" }
+      }
+    }
+  }
+}

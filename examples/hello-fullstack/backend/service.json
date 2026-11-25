@@ -1,0 +1,8 @@
+{
+  "schema": "omniforge.dev/backend-app/v1",
+  "service": "svc.api",
+  "inputs": {
+    "greeting": "Hello from hello-fullstack, built by OmniForge!",
+    "count": 1
+  }
+}

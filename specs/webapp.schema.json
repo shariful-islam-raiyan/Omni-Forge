@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omniforge.dev/webapp/v1.schema.json",
+  "title": "OmniForge Web Adapter App Manifest v1",
+  "description": "Consumed only by the web-static adapter, referenced from a project's targets.web.entry.",
+  "type": "object",
+  "required": ["schema", "title", "root"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "omniforge.dev/webapp/v1" },
+    "title": { "type": "string", "minLength": 1 },
+    "root": {
+      "type": "object",
+      "required": ["component"],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "type": "string" },
+        "inputs": { "type": "object" }
+      }
+    },
+    "public": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "css": { "type": "array", "items": { "type": "string" } },
+        "js": { "type": "array", "items": { "type": "string" } },
+        "assets": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

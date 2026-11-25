@@ -1,0 +1,19 @@
+schema: omniforge.dev/webapp/v1
+
+title: "OmniForge hello-fullstack"
+
+root:
+  component: ui.home
+  inputs:
+    title: "Hello, full-stack OmniForge!"
+    # Must match the backend target's configured dev port in omni.yaml
+    # (targets.backend.dev.port) -- the web-static adapter's template
+    # renderer bakes this in at build time (see ADR 0003), it does not
+    # discover the backend's port at runtime.
+    api_base: "http://127.0.0.1:4281"
+
+public:
+  css:
+    - style.css
+  js:
+    - api-client.js

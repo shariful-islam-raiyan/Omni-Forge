@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omniforge.dev/adapter/v1.schema.json",
+  "title": "OmniForge Adapter Manifest v1",
+  "type": "object",
+  "required": ["schema", "id", "version", "protocol", "capabilities"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "omniforge.dev/adapter/v1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+    },
+    "protocol": {
+      "type": "string",
+      "enum": ["in-process/v1", "out-of-process/v1"]
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["languages", "component_kinds", "targets", "operations"],
+      "additionalProperties": false,
+      "properties": {
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "component_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["ui", "logic", "service", "library", "tool"]
+          }
+        },
+        "targets": { "type": "array", "items": { "type": "string" } },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "discover", "validate", "resolve", "compile", "bundle",
+              "package", "test", "run", "debug", "inspect"
+            ]
+          }
+        },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "dev": {
+      "type": "object",
+      "required": ["args", "ready_stdout_prefix", "ready_timeout_ms", "stop_grace_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "args": { "type": "array", "items": { "type": "string" } },
+        "ready_stdout_prefix": { "type": "string", "minLength": 1 },
+        "ready_timeout_ms": { "type": "integer", "minimum": 1 },
+        "stop_grace_ms": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

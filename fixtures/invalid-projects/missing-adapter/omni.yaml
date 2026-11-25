@@ -1,0 +1,10 @@
+schema: omniforge.dev/project/v1
+
+project:
+  name: missing-adapter
+  version: 0.1.0
+
+targets:
+  web:
+    enabled: true
+    # no 'adapter' key: this must fail with E-PROJECT-MISSING-ADAPTER

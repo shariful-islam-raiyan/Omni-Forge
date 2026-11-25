@@ -1,0 +1,10 @@
+schema: omniforge.dev/project/v99
+
+project:
+  name: bad-schema-version
+  version: 0.1.0
+
+targets:
+  web:
+    enabled: true
+    adapter: web-static

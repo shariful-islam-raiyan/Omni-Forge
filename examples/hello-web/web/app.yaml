@@ -1,0 +1,12 @@
+schema: omniforge.dev/webapp/v1
+
+title: "Hello, OmniForge"
+
+root:
+  component: ui.home
+  inputs:
+    title: "Hello, OmniForge!"
+
+public:
+  css:
+    - style.css

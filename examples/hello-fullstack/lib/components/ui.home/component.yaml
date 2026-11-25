@@ -1,0 +1,20 @@
+schema: omniforge.dev/component/v1
+
+name: ui.home
+version: 1.0.0
+kind: ui
+
+interface:
+  inputs:
+    title:
+      type: string
+      required: true
+    api_base:
+      type: string
+      required: false
+      default: "http://127.0.0.1:8765"
+
+implementations:
+  web:
+    adapter: web-static
+    source: ./home.html.tmpl

@@ -1,0 +1,17 @@
+schema: omniforge.dev/adapter/v1
+id: web-static
+version: 0.1.0
+protocol: in-process/v1
+
+capabilities:
+  languages:
+    - template
+  component_kinds:
+    - ui
+  targets:
+    - web
+  operations:
+    - validate
+    - compile
+    - package
+  requires: []

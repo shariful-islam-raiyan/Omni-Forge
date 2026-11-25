@@ -1,0 +1,20 @@
+schema: omniforge.dev/component/v1
+
+name: ui.home
+version: 1.0.0
+kind: ui
+
+interface:
+  inputs:
+    title:
+      type: string
+      required: true
+    message:
+      type: string
+      required: false
+      default: "Edit web/app.yaml and lib/components/ui.home to get started."
+
+implementations:
+  web:
+    adapter: web-static
+    source: ./home.html.tmpl

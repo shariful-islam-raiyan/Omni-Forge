@@ -1,0 +1,33 @@
+schema: omniforge.dev/adapter/v1
+id: python-backend
+version: 0.1.0
+protocol: out-of-process/v1
+
+capabilities:
+  languages:
+    - python
+  component_kinds:
+    - service
+  targets:
+    - backend
+  operations:
+    - validate
+    - compile
+  requires:
+    - python3
+
+# Declares that this adapter's packaged build output (app/<script>,
+# run-config.json) can be started as a long-running dev server by `omni
+# dev`. This is the "runnable-package convention" documented in
+# docs/adapter-protocol.md -- it describes the *build output*, which this
+# adapter already produces unconditionally (write_artifacts in adapter.py),
+# not a new wire-protocol operation. The example backend script
+# (examples/hello-fullstack's svc.api/service.py) implements the --serve
+# convention this maps to; a backend script that doesn't recognize
+# --serve simply isn't dev-serve-capable, which `omni dev` reports plainly
+# rather than assuming.
+dev:
+  args: ["--serve", "{port}"]
+  ready_stdout_prefix: "LISTENING"
+  ready_timeout_ms: 10000
+  stop_grace_ms: 3000

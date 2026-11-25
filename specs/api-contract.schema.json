@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omniforge.dev/api-contract/v1.schema.json",
+  "title": "OmniForge API Contract v1 (a custom format inspired by, but not compatible with, OpenAPI -- see docs/decisions/0008-api-contract-is-a-custom-format.md)",
+  "type": "object",
+  "required": ["schema", "info", "paths"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "omniforge.dev/api-contract/v1" },
+    "info": {
+      "type": "object",
+      "required": ["title", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^/" },
+      "additionalProperties": {
+        "type": "object",
+        "minProperties": 1,
+        "propertyNames": { "enum": ["get", "post"] },
+        "additionalProperties": { "$ref": "#/definitions/operation" }
+      }
+    }
+  },
+  "definitions": {
+    "operation": {
+      "type": "object",
+      "required": ["responses"],
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string" },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "body": { "$ref": "#/definitions/jsonSchemaFragment" }
+          }
+        },
+        "responses": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[1-5][0-9][0-9]$" },
+          "additionalProperties": { "$ref": "#/definitions/response" }
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "required": ["description"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string", "minLength": 1 },
+        "body": { "$ref": "#/definitions/jsonSchemaFragment" }
+      }
+    },
+    "jsonSchemaFragment": {
+      "$comment": "An inline JSON Schema (draft-07) fragment describing a request or response body. Not validated recursively against the meta-schema here; crates/omni-core/src/spec/api_contract.rs's validate_request_body/validate_body compile it with the `jsonschema` crate at the point it's actually applied to a real HTTP body.",
+      "type": "object"
+    }
+  }
+}

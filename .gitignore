@@ -1,0 +1,27 @@
+/target
+**/target
+Cargo.lock.bak
+dist/
+.omniforge/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+node_modules/
+integration-tests/browser/test-results/
+integration-tests/browser/playwright-report/
+
+# Local AI-assistant tooling config/cache -- not part of the OmniForge
+# project; contains machine-local paths and unrelated skill packages.
+.claude/
+skills-lock.json
+
+# Python bytecode cache (created by running an adapter/component script
+# directly, e.g. during manual testing).
+__pycache__/
+*.pyc

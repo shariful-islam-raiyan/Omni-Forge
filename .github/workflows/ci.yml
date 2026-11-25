@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: fmt, clippy, test, build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install Python toolchain (required by the python-backend adapter)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Unit + integration tests
+        run: cargo test --workspace
+
+      - name: Build release CLI
+        run: cargo build --workspace --release
+
+      - name: omni doctor (confirms the Python toolchain is actually detected)
+        shell: bash
+        run: cargo run -q -p omni-cli --manifest-path Cargo.toml -- doctor
+
+      - name: Validate example manifests (omni check)
+        shell: bash
+        run: |
+          cd examples/hello-web
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+          cd ../hello-backend
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+          cd ../hello-fullstack
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+
+      - name: Build the web example and verify artifacts
+        shell: bash
+        run: |
+          cd examples/hello-web
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build web
+          test -f dist/web/index.html
+          test -f dist/web/assets/style.css
+          test -f dist/web/build-manifest.json
+          test -f dist/build-report.json
+          grep -q "Hello, OmniForge" dist/web/index.html
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
+
+      - name: Build the backend example and verify artifacts (real Python execution)
+        shell: bash
+        run: |
+          cd examples/hello-backend
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build backend
+          test -f dist/backend/app/service.py
+          test -f dist/backend/run-config.json
+          test -f dist/backend/output.txt
+          test -f dist/backend/build-manifest.json
+          test -f dist/build-report.json
+          grep -q "Hello from hello-backend" dist/backend/output.txt
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
+
+      - name: Build the full-stack example (both targets) and verify artifacts
+        shell: bash
+        run: |
+          cd examples/hello-fullstack
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build all
+          test -f dist/web/index.html
+          test -f dist/web/assets/api-client.js
+          test -f dist/backend/app/service.py
+          test -f dist/backend/run-config.json
+          test -f dist/backend/output.txt
+          test -f dist/build-report.json
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
+
+  browser-e2e:
+    name: real-browser E2E (hello-fullstack)
+    # Separate job, deliberately: a Node/Playwright-side issue must never
+    # block the core Rust gate above. See integration-tests/browser/README.md
+    # for why this suite exists outside the Cargo workspace.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python toolchain (required by the python-backend adapter)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build the omni CLI
+        run: cargo build -p omni-cli --release
+
+      - name: Install Playwright and Chromium
+        working-directory: integration-tests/browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run the real-browser suite against a real omni dev process
+        working-directory: integration-tests/browser
+        run: npm test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: integration-tests/browser/playwright-report/
+          retention-days: 7

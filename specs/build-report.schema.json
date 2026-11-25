@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omniforge.dev/build-report/v1.schema.json",
+  "title": "OmniForge Build Report v1",
+  "type": "object",
+  "required": ["schema", "project", "timestamp", "targets", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "omniforge.dev/build-report/v1" },
+    "project": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "timestamp": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["success", "failed", "partial"]
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "status", "artifacts", "diagnostics"],
+        "additionalProperties": false,
+        "properties": {
+          "target": { "type": "string" },
+          "adapter": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "version": { "type": "string" }
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": ["success", "failed", "partial", "unsupported", "skipped"]
+          },
+          "cache": { "type": "string", "enum": ["hit", "miss", "disabled"] },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["path", "bytes", "sha256"],
+              "additionalProperties": false,
+              "properties": {
+                "path": { "type": "string" },
+                "bytes": { "type": "integer" },
+                "sha256": { "type": "string" }
+              }
+            }
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/diagnostic" }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "diagnostic": {
+      "type": "object",
+      "required": ["code", "severity", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string" },
+        "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+        "message": { "type": "string" },
+        "explanation": { "type": "string" },
+        "file": { "type": "string" },
+        "line": { "type": "integer" },
+        "component": { "type": "string" },
+        "target": { "type": "string" },
+        "suggestion": { "type": "string" }
+      }
+    }
+  }
+}

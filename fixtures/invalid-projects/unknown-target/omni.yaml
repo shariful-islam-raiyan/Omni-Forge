@@ -1,0 +1,10 @@
+schema: omniforge.dev/project/v1
+
+project:
+  name: unknown-target
+  version: 0.1.0
+
+targets:
+  quantum-computer:
+    enabled: true
+    # 'quantum-computer' is not a recognized target: E-PROJECT-UNKNOWN-TARGET

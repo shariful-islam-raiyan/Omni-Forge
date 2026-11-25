@@ -1,0 +1,12 @@
+schema: omniforge.dev/webapp/v1
+
+title: "__PROJECT_NAME__"
+
+root:
+  component: ui.home
+  inputs:
+    title: "Welcome to __PROJECT_NAME__"
+
+public:
+  css:
+    - style.css

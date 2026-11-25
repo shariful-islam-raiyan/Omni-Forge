@@ -1,0 +1,66 @@
+{
+  "schema": "omniforge.dev/api-contract/v1",
+  "info": {
+    "title": "hello-fullstack backend API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/greeting": {
+      "get": {
+        "summary": "Return the configured greeting and how many times it would be printed.",
+        "responses": {
+          "200": {
+            "description": "A greeting was produced.",
+            "body": {
+              "type": "object",
+              "required": ["greeting", "count"],
+              "additionalProperties": false,
+              "properties": {
+                "greeting": { "type": "string" },
+                "count": { "type": "integer" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/echo": {
+      "post": {
+        "summary": "Echo a message back as JSON.",
+        "request": {
+          "body": {
+            "type": "object",
+            "required": ["message"],
+            "properties": {
+              "message": { "type": "string" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The message was valid and has been echoed back.",
+            "body": {
+              "type": "object",
+              "required": ["message"],
+              "additionalProperties": false,
+              "properties": {
+                "message": { "type": "string" }
+              }
+            }
+          },
+          "400": {
+            "description": "The request body was missing, not valid JSON, or did not contain a string 'message' field.",
+            "body": {
+              "type": "object",
+              "required": ["error"],
+              "additionalProperties": false,
+              "properties": {
+                "error": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

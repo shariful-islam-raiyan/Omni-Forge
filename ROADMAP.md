@@ -1,0 +1,57 @@
+# Roadmap
+
+This is a short, high-level summary. The authoritative, continuously
+updated, item-by-item breakdown (Implemented / Partial / Planned /
+Blocked, with the exact code and test backing each claim) lives in
+[docs/roadmap.md](docs/roadmap.md) — read that for details; this file
+exists so the big picture is visible without opening `docs/`.
+
+## Where OmniForge is today
+
+- **Core engine** (project/component/adapter loading, validation,
+  dependency resolution, build caching, diagnostics) — implemented and
+  tested, language-neutral.
+- **Two real adapters**: `web-static` (in-process, static sites) and
+  `python-backend` (out-of-process, a real Python interpreter).
+- **A unified `omni dev`** that builds and serves every enabled target at
+  once, managing a real backend dev-server process with graceful
+  shutdown.
+- **A full-stack example** (`examples/hello-fullstack`) proving a web
+  frontend and a Python backend can be built from one project file and
+  talk to each other over a declared, validated API contract — checked at
+  the HTTP level, the process-lifecycle level, and the real-browser level.
+
+See [README.md](README.md#current-implementation-status) for the
+Implemented/Partial/Planned status table, and [docs/roadmap.md](docs/roadmap.md)
+for the full detail.
+
+## Where it's going
+
+In rough priority order (not a committed schedule):
+
+1. **Adapter SDK and conformance tooling** — make it genuinely
+   straightforward for a third party to write a new language/target
+   adapter against a documented, versioned protocol, with a conformance
+   test suite to check against.
+2. **A second real backend-language adapter** (candidates: Node.js/
+   TypeScript, or Go — reusing the existing `ProcessAdapter` mechanism,
+   which is already language-neutral) with its own real end-to-end
+   example, built incrementally and honestly rather than many adapters at
+   once superficially.
+3. **Parallel build scheduling** across independent targets — the
+   dependency graph is already schedule-ready; no scheduler exists yet.
+4. **Desktop/mobile targets** (Windows, Linux, macOS desktop; Android;
+   iOS) — these need real toolchain research and a real sample app proving
+   the packaged output actually runs before any adapter is claimed to
+   support them. Not started.
+5. **Third-party adapter trust/enablement policy** — today only adapters
+   this repository ships and reviews can run; nothing is discovered or
+   downloaded. A real trust model is a prerequisite for ever changing that.
+6. **Real OpenAPI 3.1 support**, if/when a consumer actually needs it —
+   the current API contract format is deliberately smaller and custom
+   (see [ADR 0008](docs/decisions/0008-api-contract-is-a-custom-format.md)).
+
+Nothing above is implemented by having a placeholder, a stub, or a
+manifest entry with no working code behind it — see
+[docs/roadmap.md](docs/roadmap.md)'s status definitions for what
+"Implemented" actually requires here.

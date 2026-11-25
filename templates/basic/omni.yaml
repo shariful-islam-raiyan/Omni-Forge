@@ -1,0 +1,35 @@
+schema: omniforge.dev/project/v1
+
+project:
+  name: __PROJECT_NAME__
+  version: 0.1.0
+
+targets:
+  web:
+    enabled: true
+    adapter: web-static
+    entry: web/app.yaml
+  android:
+    enabled: false
+  ios:
+    enabled: false
+  windows:
+    enabled: false
+  linux:
+    enabled: false
+  macos:
+    enabled: false
+  backend:
+    enabled: false
+
+components:
+  directory: lib/components
+
+build:
+  output: dist
+  cache: true
+  parallel: false
+
+security:
+  strict_adapter_permissions: true
+  audit_dependencies: true

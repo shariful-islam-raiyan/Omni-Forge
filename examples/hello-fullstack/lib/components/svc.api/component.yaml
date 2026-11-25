@@ -1,0 +1,21 @@
+schema: omniforge.dev/component/v1
+
+name: svc.api
+version: 1.0.0
+kind: service
+
+interface:
+  inputs:
+    greeting:
+      type: string
+      required: false
+      default: "Hello from the OmniForge hello-fullstack backend."
+    count:
+      type: number
+      required: false
+      default: 1
+
+implementations:
+  backend:
+    adapter: python-backend
+    source: ./service.py

@@ -1,0 +1,42 @@
+schema: omniforge.dev/project/v1
+
+project:
+  name: hello-fullstack
+  version: 0.1.0
+
+targets:
+  web:
+    enabled: true
+    adapter: web-static
+    entry: web/app.yaml
+    dev:
+      port: 4280
+  android:
+    enabled: false
+  ios:
+    enabled: false
+  windows:
+    enabled: false
+  linux:
+    enabled: false
+  macos:
+    enabled: false
+  backend:
+    enabled: true
+    adapter: python-backend
+    entry: backend/service.json
+    contract: backend/api-contract.json
+    dev:
+      port: 4281
+
+components:
+  directory: lib/components
+
+build:
+  output: dist
+  cache: true
+  parallel: false
+
+security:
+  strict_adapter_permissions: true
+  audit_dependencies: true

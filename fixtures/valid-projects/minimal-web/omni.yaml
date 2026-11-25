@@ -1,0 +1,11 @@
+schema: omniforge.dev/project/v1
+
+project:
+  name: minimal-web
+  version: 0.1.0
+
+targets:
+  web:
+    enabled: true
+    adapter: web-static
+    entry: web/app.yaml
