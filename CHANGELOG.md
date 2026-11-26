@@ -1,5 +1,91 @@
 # Changelog
 
+## Unreleased — A real Android adapter
+
+- **New target: `android`, via a new `android-gradle` adapter.**
+  `omni build android` genuinely generates a minimal Gradle project (one
+  `Activity`, one `TextView`) and invokes a real, locally-discovered
+  Gradle to produce a real, debug-signed APK — verified by re-opening it
+  as a zip archive and confirming `AndroidManifest.xml`/`classes.dex` are
+  genuinely present, not merely checking the file exists. See
+  [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) for the full
+  design, and `examples/hello-android` for a complete, buildable example.
+  Verified end to end on this project's own Windows development machine,
+  against a real Android Studio SDK/JDK + cached Gradle install, both as
+  a crate-level test
+  (`crates/omni-android-adapter/tests/compile.rs::builds_a_real_apk_end_to_end`)
+  and via the real compiled CLI building `examples/hello-android` and
+  inspecting the resulting APK with `aapt2 dump badging`.
+- **New architecture note: a third adapter style.** `android-gradle` is
+  in-process Rust (registered `in-process/v1`, like `web-static`) that
+  safely shells out to a real external build tool (Gradle) which does not
+  speak OmniForge's own wire protocol — distinct from `web-static`
+  (no subprocess at all) and `python-backend` (`out-of-process/v1`, a
+  subprocess that *does* speak the wire protocol). New generic primitives
+  in `omni-adapter-api` support this: `process::run_tool` (no-shell,
+  controlled-environment, bounded-timeout invocation of an arbitrary
+  external tool, capturing stdout/stderr/exit status) and
+  `process::controlled_env_with` (the existing fixed environment allowlist
+  plus a small, explicit set of extra variables a tool genuinely needs —
+  `JAVA_HOME`/`ANDROID_HOME` for Gradle).
+- New component template model for Android:
+  `crates/omni-android-adapter/src/kotlin.rs` mirrors `web-static`'s
+  `template.rs` exactly (fixed `{{field}}` substitution, every placeholder
+  a declared input) with a Kotlin-string-literal escaper instead of an
+  HTML escaper — notably escaping `$` (Kotlin's string-interpolation
+  trigger character), which HTML escaping has no equivalent for.
+- New schema `specs/android-app.schema.json`
+  (`omniforge.dev/android-app/v1`) for the `android` target's entry file
+  (`package`, `app_label`, optional `min_sdk`/`target_sdk`/`compile_sdk`,
+  `root`), wired into `omni-core`'s central schema validation
+  (`SchemaKind::AndroidApp`) the same way `webapp.schema.json` is.
+- New toolchain discovery (`omni_android_adapter::toolchain`): finds a
+  real Android SDK, JDK, and Gradle distribution via environment
+  variables and common installation locations (including scanning
+  Gradle's own wrapper distribution cache,
+  `~/.gradle/wrapper/dists/*/*/gradle-*`, so this adapter never needs to
+  download Gradle itself) — Windows paths verified directly; macOS/Linux
+  default paths implemented but not verified on an actual macOS/Linux
+  machine (see ADR 0011). `omni doctor` reports exactly what was found
+  (or what's missing) for `android-gradle`, via a dedicated code path
+  rather than the generic `capabilities.requires` loop other adapters use.
+- **Two real, non-obvious bugs found and fixed while building this**,
+  both specific to this adapter, neither a regression in existing code:
+  1. A Kotlin/Java JVM-target mismatch (Kotlin defaulting to whatever JDK
+     actually runs Gradle, Java defaulting to 1.8) that AGP refuses —
+     fixed by pinning both to JVM 17 explicitly in the generated
+     `app/build.gradle.kts`.
+  2. Gradle's own Java-side path canonicalization cannot parse a
+     `\\?\`-prefixed Windows extended-length path (which
+     `omni_core::loader::find_project_root` correctly returns) when
+     passed as a `--project-dir` *argument* — fixed by never passing that
+     argument; the generated project directory is set as the child
+     process's working directory instead, which Windows itself handles
+     natively regardless of the `\\?\` prefix.
+  3. A template file's conventional trailing newline, if not trimmed,
+     would splice a raw newline into the generated single-line Kotlin
+     string literal, producing invalid Kotlin — fixed by trimming it
+     before rendering, with a regression test using a template that
+     deliberately has one.
+- The real end-to-end Gradle-build test is gated behind an explicit
+  `OMNIFORGE_RUN_ANDROID_E2E=1` opt-in (in addition to toolchain
+  detection) — unlike Python (ubiquitous on CI/dev machines, confirmed by
+  this project's existing tests), a *working* Android SDK/JDK/Gradle/AGP/
+  Kotlin combination on an arbitrary machine was not something this
+  milestone could verify on GitHub-hosted CI runners; this avoids a real
+  CI-image version mismatch silently breaking the shared
+  `cargo test --workspace` gate for every contributor. `scripts/verify.sh`
+  sets the opt-in and still skips gracefully if the toolchain genuinely
+  isn't present. `.github/workflows/ci.yml` gained a separate, isolated
+  `android` job (same isolation principle as the existing `browser-e2e`
+  job) that always opts in — whether it actually passes on GitHub's
+  runners was **not** verified as part of this milestone.
+- Added 18 tests (138 total; was 120 after the component-composition
+  milestone below): 5 in `omni-adapter-api` (the new
+  `run_tool`/`controlled_env_with` primitives), 2 in `omni-core` (the new
+  android-app schema), 8 unit + 3 integration in `omni-android-adapter`
+  (including the real end-to-end Gradle build, gated as described above).
+
 ## Unreleased — Component composition
 
 - **New: component composition.** A component's `component.yaml` may

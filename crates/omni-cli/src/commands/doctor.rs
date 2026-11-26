@@ -70,6 +70,36 @@ pub fn run() -> i32 {
     let mut all_ok = true;
     for adapter in registry::built_in_adapters() {
         let m = adapter.manifest();
+        if m.id == "android-gradle" {
+            // The android-gradle adapter's toolchain isn't a single named
+            // executable on PATH (unlike python-backend's `requires`
+            // entries) -- it's a real SDK dir, a JDK, and a Gradle
+            // distribution, each discovered its own way (see
+            // omni_android_adapter::toolchain and ADR 0011). Report that
+            // discovery precisely instead of the generic requires loop.
+            match omni_android_adapter::toolchain::detect() {
+                Ok(t) => {
+                    println!(
+                        "  {} {} — OK (SDK: {}, JDK: {}, Gradle: {})",
+                        m.id,
+                        m.version,
+                        t.sdk_dir.display(),
+                        t.java_home.display(),
+                        t.gradle_exe.display()
+                    );
+                }
+                Err(problems) => {
+                    println!(
+                        "  {} {} — MISSING ({})",
+                        m.id,
+                        m.version,
+                        problems.missing.join("; ")
+                    );
+                    all_ok = false;
+                }
+            }
+            continue;
+        }
         if m.capabilities.requires.is_empty() {
             println!(
                 "  {} {} — OK (in-process, no external toolchain required)",

@@ -186,6 +186,7 @@ resource this project doesn't have yet.
 | Adapter interface + out-of-process execution engine | Implemented | `crates/omni-adapter-api` |
 | `web-static` adapter | Implemented | In-process, escaped-template rendering only |
 | `python-backend` adapter | Implemented | Real Python subprocess, stdlib-only |
+| `android-gradle` adapter | Implemented (Windows verified; macOS/Linux unverified) | Real Gradle invocation produces a real, verified debug APK; see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) and `examples/hello-android` |
 | Unified `omni dev` (multi-target, real process lifecycle) | Implemented | Graceful-then-hard-kill shutdown, verified against the real compiled binary with a genuine OS signal |
 | API contract format + validation | Implemented | A **custom** format (not OpenAPI — see below), with build-time validation and reusable request/response validators |
 | Full-stack example (web ↔ backend over a declared contract) | Implemented | `examples/hello-fullstack`, checked at the HTTP, process-lifecycle, and real-browser levels |
@@ -196,7 +197,8 @@ resource this project doesn't have yet.
 | Third-party adapter trust/enablement | Planned | Only adapters this repository ships and reviews can run today |
 | Adapter sandboxing beyond argv/env/cwd/timeout | Blocked | No third-party adapter exists yet to sandbox; see security model |
 | Desktop targets (Windows/Linux/macOS) | Planned | Vocabulary exists (`omni.yaml` accepts the target names); no adapter |
-| Mobile targets (Android/iOS) | Planned | Same — vocabulary only, no adapter |
+| Android target | Implemented (Windows verified; macOS/Linux unverified) | `android-gradle` adapter — real Gradle build, real APK, see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) |
+| iOS target | Planned | Vocabulary only, no adapter — genuinely requires a macOS/Xcode environment this project's development machine (Windows) does not have |
 | Additional language adapters (Node/Go/Rust/etc.) | Planned | `ProcessAdapter` is language-neutral and reusable; no second out-of-process adapter exists yet |
 | Real OpenAPI 3.1 document support | Planned | The current contract format is deliberately smaller and custom instead — see [ADR 0008](docs/decisions/0008-api-contract-is-a-custom-format.md) |
 
@@ -210,7 +212,8 @@ README's table as a summary, that one as the source of truth.
 |---|---|---|---|
 | `web` | `web-static` | **Implemented** | A real static site: HTML rendered from escaped templates, copied CSS/JS/assets, a build manifest |
 | `backend` | `python-backend` | **Implemented** | A real, packaged, runnable Python application (`app/`, `run.sh`/`run.bat`, captured output) — requires a Python 3 interpreter on `PATH` |
-| `android`, `ios`, `windows`, `linux`, `macos` | — | **Not implemented** | These are valid target *names* in the schema (so `omni.yaml` won't reject them for existing), but enabling one with no adapter correctly fails with `E-BUILD-ADAPTER-UNAVAILABLE` rather than pretending to succeed |
+| `android` | `android-gradle` | **Implemented** (Windows verified; macOS/Linux unverified) | A real, debug-signed APK — requires a real local Android SDK, JDK, and a discoverable Gradle distribution (`omni doctor` reports exactly what was found); see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) |
+| `ios`, `windows`, `linux`, `macos` | — | **Not implemented** | These are valid target *names* (so `omni.yaml` won't reject them for existing), but enabling one with no adapter correctly fails with `E-BUILD-ADAPTER-UNAVAILABLE` rather than pretending to succeed |
 
 OmniForge's vocabulary is intentionally broader than its current adapter
 set — see [Explicitly unsupported / planned](#explicitly-unsupported--planned).
@@ -219,13 +222,24 @@ set — see [Explicitly unsupported / planned](#explicitly-unsupported--planned)
 
 To be unambiguous about what **not** to expect from the current release:
 
-- **No Android, iOS, Windows desktop, Linux desktop, or macOS desktop
-  adapter exists.** Enabling one of these targets produces an honest
-  `unsupported` build result, never a fake success.
-- **No Go, Rust-as-a-backend, Dart, C, C++, Java, Kotlin, Swift, or
-  COBOL adapter exists.** `ProcessAdapter` (the out-of-process execution
+- **No iOS, Windows desktop, Linux desktop, or macOS desktop adapter
+  exists.** Enabling one of these targets produces an honest
+  `unsupported` build result, never a fake success. iOS genuinely
+  requires a macOS/Xcode environment — not available on this project's
+  (Windows) development machine — so it was not attempted; see
+  [docs/roadmap.md](docs/roadmap.md).
+- **Android support is real but narrow.** `android-gradle` builds a
+  real, verified debug APK with exactly one `Activity`/one `TextView`
+  from a component's declared message — no emulator/device install, no
+  release signing, no `.aab` output, and not a UI framework. See
+  [ADR 0011](docs/decisions/0011-android-gradle-adapter.md).
+- **No Go, Rust-as-a-backend, Dart, C, C++, Java, Swift, or COBOL
+  adapter exists.** `ProcessAdapter` (the out-of-process execution
   mechanism) is language-neutral and designed to be reused for any of
-  these, but none has actually been built and tested yet.
+  these, but none has actually been built and tested yet. (Kotlin is
+  used by the real `android-gradle` adapter above, but only to generate
+  one fixed Activity template — not as a general-purpose adapter
+  language.)
 - **The web adapter is not a React/Vue/Angular/Flutter-style component
   framework.** It renders a deliberately tiny, non-Turing-complete
   `{{field}}` substitution template — no virtual DOM, no client-side
@@ -286,6 +300,14 @@ examples/navbar-demo/      Component composition: a ui.page component
                             embeds a reusable ui.navbar component's
                             rendered output via 'composes' — see its
                             README and ADR 0010.
+examples/hello-android/    A real, buildable Android app (one Activity,
+                            one TextView) via the android-gradle adapter
+                            — see its README and ADR 0011.
+crates/omni-android-adapter/ The android-gradle adapter: toolchain
+                            discovery (SDK/JDK/Gradle), Gradle project
+                            generation, Kotlin-string templating, and a
+                            real Gradle invocation + APK verification.
+adapters/android-gradle/   The android-gradle adapter's manifest.
 integration-tests/browser/ The real-browser (Playwright) E2E suite —
                             additive, Node-based, outside `cargo test`.
 fixtures/                  Static valid/invalid omni.yaml fixtures used
@@ -372,6 +394,11 @@ exists, not before.
 - **For contributing, or the optional real-browser test suite only**:
   Node.js 18+ — see [integration-tests/browser/README.md](integration-tests/browser/README.md).
   Not needed to install or use the CLI itself.
+- **For the `android` target only**: a real Android SDK (at least one
+  platform + build-tools), a JDK, and a Gradle distribution discoverable
+  on this machine (see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md)
+  for exactly how each is found — typically all three already exist if
+  Android Studio is installed). Run `omni doctor` to check.
 
 ## Quick start
 
@@ -460,6 +487,25 @@ browser (`integration-tests/browser/`). See
 [examples/hello-fullstack/README.md](examples/hello-fullstack/README.md)
 for exactly what's automated vs. what that's still manual.
 
+## Android walkthrough: a real, built APK
+
+```sh
+cd examples/hello-android
+omni doctor          # shows exactly which SDK/JDK/Gradle will be used
+omni build android    # genuinely invokes Gradle; writes dist/android/app-debug.apk
+```
+
+`dist/android/app-debug.apk` is a real, debug-signed Android package —
+inspect it with `unzip -l` or Android's own `aapt2 dump badging` to see
+its real package name, app label, and SDK versions. Requires a real
+local Android SDK/JDK/Gradle (see
+[Requirements and prerequisites](#requirements-and-prerequisites) and
+[ADR 0011](docs/decisions/0011-android-gradle-adapter.md)); `omni doctor`
+reports exactly what's missing if the build can't run. See
+[examples/hello-android/README.md](examples/hello-android/README.md) for
+exactly what's verified vs. not (no emulator/device install, no release
+signing, no `.aab`).
+
 ## Adapter architecture and extension guide
 
 An adapter connects OmniForge to one real toolchain. Every adapter
@@ -477,12 +523,12 @@ pub trait Adapter {
 }
 ```
 
-Two implementation styles exist today, and a third language's adapter
-can use either:
+Three implementation styles exist today, and a new adapter can use
+whichever fits its real toolchain:
 
 - **In-process** (`web-static`): implement the trait directly in Rust,
-  compiled into the `omni` binary. Fastest, but means the adapter's logic
-  is Rust code.
+  compiled into the `omni` binary, with no subprocess at all. Fastest,
+  but means the adapter's logic is Rust code.
 - **Out-of-process** (`python-backend`, via the generic, language-neutral
   `ProcessAdapter`): the adapter is a *separate process* speaking a
   versioned JSON protocol over stdin/stdout — see
@@ -490,6 +536,16 @@ can use either:
   wire format. `ProcessAdapter` itself has zero Python-specific code; a
   Node.js, Go, or any other out-of-process adapter reuses it unchanged,
   only supplying a different script/executable and manifest.
+- **In-process, safely shelling out to a real external build tool**
+  (`android-gradle`): the adapter's decision-making is in-process Rust
+  (registered as `in-process/v1`, like `web-static`), but it genuinely
+  invokes a real external tool (Gradle) that doesn't speak OmniForge's
+  own protocol, via a new generic primitive —
+  `omni_adapter_api::process::run_tool` — carrying forward the exact same
+  no-shell/controlled-environment/bounded-timeout discipline
+  `process::execute` already enforces for out-of-process adapters, just
+  without the JSON request/response framing. See
+  [ADR 0011](docs/decisions/0011-android-gradle-adapter.md).
 
 **To add a new adapter today**, you need to:
 
@@ -564,7 +620,7 @@ development and production behavior.
 
 ```sh
 cargo build --workspace
-cargo test --workspace      # 120 tests: unit + integration + adapter conformance + dev-process lifecycle + composition
+cargo test --workspace      # 138 tests: unit + integration + adapter conformance + dev-process lifecycle + composition + android-gradle (real Gradle build skipped unless OMNIFORGE_RUN_ANDROID_E2E=1 — see ADR 0011)
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 bash scripts/verify.sh      # all of the above, plus end-to-end builds of all three examples

@@ -1,0 +1,20 @@
+schema: omniforge.dev/adapter/v1
+id: android-gradle
+version: 0.1.0
+protocol: in-process/v1
+
+capabilities:
+  languages:
+    - kotlin
+    - template
+  component_kinds:
+    - ui
+  targets:
+    - android
+  operations:
+    - validate
+    - compile
+  requires:
+    - android-sdk
+    - java
+    - gradle

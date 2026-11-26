@@ -1,0 +1,9 @@
+schema: omniforge.dev/android-app/v1
+
+package: dev.omniforge.hello
+app_label: "Hello OmniForge"
+
+root:
+  component: ui.greeting
+  inputs:
+    message: "Hello from OmniForge's android-gradle adapter."

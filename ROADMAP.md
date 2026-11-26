@@ -20,6 +20,14 @@ exists so the big picture is visible without opening `docs/`.
   frontend and a Python backend can be built from one project file and
   talk to each other over a declared, validated API contract — checked at
   the HTTP level, the process-lifecycle level, and the real-browser level.
+- **Component composition** (`composes` in `component.yaml`): one
+  component's rendered output can be embedded inside another's — see
+  `examples/navbar-demo` and ADR 0010.
+- **A real Android adapter** (`android-gradle`): `omni build android`
+  genuinely invokes a locally-discovered Gradle and produces a real,
+  verified debug APK — see `examples/hello-android` and ADR 0011.
+  Verified on Windows; macOS/Linux toolchain discovery is implemented but
+  unverified.
 
 See [README.md](README.md#current-implementation-status) for the
 Implemented/Partial/Planned status table, and [docs/roadmap.md](docs/roadmap.md)
@@ -40,10 +48,14 @@ In rough priority order (not a committed schedule):
    once superficially.
 3. **Parallel build scheduling** across independent targets — the
    dependency graph is already schedule-ready; no scheduler exists yet.
-4. **Desktop/mobile targets** (Windows, Linux, macOS desktop; Android;
-   iOS) — these need real toolchain research and a real sample app proving
-   the packaged output actually runs before any adapter is claimed to
-   support them. Not started.
+4. **Desktop and iOS targets** (Windows, Linux, macOS desktop; iOS) —
+   Android now has a real adapter (`android-gradle`, above). The
+   remaining native targets each need real toolchain research and a real
+   sample app proving the packaged output actually runs before any
+   adapter is claimed to support them; iOS additionally needs a
+   macOS/Xcode environment this project doesn't have. Not started.
+   Nearer-term for Android itself: emulator/device install, release
+   signing, and `.aab` output.
 5. **Third-party adapter trust/enablement policy** — today only adapters
    this repository ships and reviews can run; nothing is discovered or
    downloaded. A real trust model is a prerequisite for ever changing that.

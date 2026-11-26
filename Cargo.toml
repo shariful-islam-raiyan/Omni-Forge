@@ -4,6 +4,7 @@ members = [
     "crates/omni-core",
     "crates/omni-adapter-api",
     "crates/omni-web-adapter",
+    "crates/omni-android-adapter",
     "crates/omni-cli",
 ]
 

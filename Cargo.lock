@@ -899,6 +899,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "omni-android-adapter"
+version = "0.1.0"
+dependencies = [
+ "omni-adapter-api",
+ "omni-core",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "zip",
+]
+
+[[package]]
 name = "omni-cli"
 version = "0.1.0"
 dependencies = [
@@ -906,6 +919,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "omni-adapter-api",
+ "omni-android-adapter",
  "omni-core",
  "omni-web-adapter",
  "predicates",

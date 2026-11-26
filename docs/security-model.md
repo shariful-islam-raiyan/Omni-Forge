@@ -8,13 +8,15 @@ warns against, so: nothing below is aspirational.
 
 OmniForge, as shipped, runs as the `omni` CLI process plus, per build, at
 most one short-lived child process per out-of-process adapter it invokes
-(today: `python-backend`, spawned once per `validate`/`compile` call) —
-operating on a project directory the invoking user already controls.
-`omni build`/`omni check` never leave a process running afterward. `omni
-dev` is the one exception: for the duration it runs, it may additionally
-supervise a real, long-lived child process (a `dev`-capable adapter's
-backend dev server) and/or a static file server, both bound to
-`127.0.0.1` only. The things worth defending against today are:
+(today: `python-backend`, spawned once per `validate`/`compile` call,
+and — a different style, see below — `android-gradle`'s real Gradle
+invocation during `compile()`) — operating on a project directory the
+invoking user already controls. `omni build`/`omni check` never leave a
+process running afterward. `omni dev` is the one exception: for the
+duration it runs, it may additionally supervise a real, long-lived child
+process (a `dev`-capable adapter's backend dev server) and/or a static
+file server, both bound to `127.0.0.1` only. The things worth defending
+against today are:
 
 1. A malformed or malicious `omni.yaml`/`component.yaml`/app-manifest
    trying to make OmniForge read or write outside the project directory.
@@ -30,6 +32,10 @@ backend dev server) and/or a static file server, both bound to
 7. `omni dev`'s long-lived child process outliving the `omni` process
    that started it (a leaked/orphaned server after Ctrl-C, a crash, or a
    panic).
+8. `android-gradle`'s real Gradle invocation, which (unlike every other
+   adapter here) can perform real network access on a cold cache to
+   resolve the Android Gradle Plugin/Kotlin Gradle Plugin, hanging or
+   misbehaving.
 
 ## What's implemented
 
@@ -123,6 +129,46 @@ backend dev server) and/or a static file server, both bound to
   [ADR 0002](decisions/0002-in-process-adapters.md) and
   [ADR 0005](decisions/0005-out-of-process-python-backend.md).
 
+## Real external tool invocation (`android-gradle`)
+
+`android-gradle`'s `compile()` genuinely invokes a real, locally-discovered
+Gradle (see [ADR 0011](decisions/0011-android-gradle-adapter.md)) via a
+new, generic primitive —
+`omni_adapter_api::process::run_tool`/`controlled_env_with` — reviewed
+against the same checklist as `process.rs`/`devserver.rs`:
+
+- **No shell** — `Command::new(gradle_exe).args(["assembleDebug",
+  "--no-daemon"])` only; no constructed shell string, no `--project-dir`
+  argument either (see ADR 0011 for why that specific argument was
+  avoided on Windows).
+- **Controlled environment** — `controlled_env_with` is the same
+  `controlled_env()` allowlist plus exactly `JAVA_HOME`/`ANDROID_HOME`/
+  `ANDROID_SDK_ROOT`, set to the paths this adapter's own toolchain
+  discovery found — never the parent's full environment, never secrets.
+- **Controlled working directory** — a scratch directory under this
+  project's own `.omniforge/android-build/<target>/`, not a path derived
+  from any build input.
+- **Bounded timeout** — 10 minutes, generous because a cold Android
+  Gradle Plugin/Kotlin plugin resolution genuinely can take a few
+  minutes, but still enforced via the same poll-then-kill pattern
+  `process::execute` uses, so a hung Gradle daemon cannot block a build
+  indefinitely.
+- **Artifact re-verification** — a claimed-successful Gradle exit is not
+  trusted alone: the produced APK is opened as a real zip archive and
+  checked for a nonempty `AndroidManifest.xml` entry before being copied
+  into `dist/` and reported as a build success.
+
+This is the same trust boundary as `python-backend`: Gradle, the Android
+Gradle Plugin, and the Kotlin Gradle Plugin all run with the same
+privileges as the `omni` CLI itself. No sandboxing beyond
+argv/environment/working-directory/timeout control exists here either.
+Unlike `python-backend`'s script (embedded in this repository), Gradle
+and its plugins are **not** embedded — they are resolved from Google's/
+Maven Central's real package repositories the first time a version isn't
+already cached, which means (unlike every other adapter in this project)
+`android-gradle` can, on a cold cache, perform real network access during
+a build. This is disclosed here explicitly rather than left implicit.
+
 ## `omni dev`'s long-lived process management (production, not test-only)
 
 `crates/omni-adapter-api/src/devserver.rs::ManagedProcess` is what `omni
@@ -167,12 +213,18 @@ project's own backend component), not third-party input.
 ## What's explicitly NOT implemented (don't assume otherwise)
 
 - **No sandboxing of adapter child processes.** `python-backend`'s child
-  process runs with the same user privileges as the `omni` CLI itself —
-  argv/env/cwd control and a timeout, but no seccomp, no container, no
-  capability drop. This is honest because the only out-of-process adapter
-  that exists is one this repository ships and reviews, not third-party
-  code (see below) — but it means a process boundary alone is not being
-  sold as a security boundary here.
+  process (and `android-gradle`'s real Gradle invocation, and everything
+  Gradle itself spawns/downloads during a build) runs with the same user
+  privileges as the `omni` CLI itself — argv/env/cwd control and a
+  timeout, but no seccomp, no container, no capability drop. This is
+  honest because every adapter that exists is one this repository ships
+  and reviews, not third-party code (see below) — but it means a process
+  boundary alone is not being sold as a security boundary here. For
+  `android-gradle` specifically, this extends to Gradle's own plugin
+  resolution: the Android Gradle Plugin and Kotlin Gradle Plugin are
+  fetched from Google's/Maven Central's real repositories (not reviewed
+  or pinned by hash in this repository beyond a version number), exactly
+  the same trust model as running `gradle build` yourself would have.
 - **No trust/enablement policy for third-party adapters.** Nothing in
   OmniForge today can load or run an adapter this repository didn't ship.
   See `docs/adapter-protocol.md`'s "Trust and enablement policy" section

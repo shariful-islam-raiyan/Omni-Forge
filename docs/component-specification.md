@@ -92,6 +92,42 @@ config = json.load(open(sys.argv[1])) if len(sys.argv) > 1 else {}
 print(config.get("greeting", "default"))
 ```
 
+### `ui` components and the `android-gradle` adapter
+
+A `ui`-kind component's `implementations.android.source` is a small
+template file (e.g. `message.kt.tmpl`) — the Android equivalent of
+`web-static`'s `.html.tmpl` (see [ADR 0011](decisions/0011-android-gradle-adapter.md)):
+fixed `{{field}}` substitution only, every placeholder a declared input,
+every value escaped for safe inclusion in a Kotlin string literal
+(`crates/omni-android-adapter/src/kotlin.rs`). Its *entire rendered
+output* becomes the generated app's one `TextView`'s text — there is no
+layout, no second widget, and no logic, by design (the same scope ADR
+0003 drew for HTML, applied to Kotlin):
+
+```yaml
+schema: omniforge.dev/component/v1
+name: ui.greeting
+version: 1.0.0
+kind: ui
+interface:
+  inputs:
+    message:
+      type: string
+      required: false
+      default: "Hello from OmniForge's android-gradle adapter."
+implementations:
+  android:
+    adapter: android-gradle
+    source: ./message.kt.tmpl
+```
+
+The target's `android/app.yaml` entry file (schema
+`omniforge.dev/android-app/v1`) is core-validated (unlike the
+`backend`-target entry file below) — it declares the app's `package`
+name, `app_label`, optional `min_sdk`/`target_sdk`/`compile_sdk`, and
+`root.component`/`root.inputs`, exactly analogous to `web/app.yaml`'s
+shape. See `examples/hello-android`.
+
 ### The `backend` target's entry file is adapter-owned, not core-owned
 
 `omni-core` resolves a target's `entry` path safely (`safe_join`) but

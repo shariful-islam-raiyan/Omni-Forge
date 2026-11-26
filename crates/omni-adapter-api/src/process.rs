@@ -134,6 +134,17 @@ pub fn controlled_env() -> Vec<(String, String)> {
     .collect()
 }
 
+/// [`controlled_env`] plus a small, explicit set of extra variables a
+/// particular tool genuinely needs to run (e.g. `JAVA_HOME`/`ANDROID_HOME`
+/// for Gradle) — still never the parent's full environment, only exactly
+/// what's passed in on top of the same fixed allowlist every other
+/// controlled child process gets.
+pub fn controlled_env_with(extra: &[(String, String)]) -> Vec<(String, String)> {
+    let mut env = controlled_env();
+    env.extend(extra.iter().cloned());
+    env
+}
+
 fn truncate_tail(s: &str, max: usize) -> String {
     let trimmed = s.trim();
     if trimmed.len() <= max {
@@ -277,6 +288,100 @@ pub fn execute(
     }
 
     Ok(parsed)
+}
+
+/// Captured result of a [`run_tool`] invocation.
+#[derive(Debug, Clone)]
+pub struct ToolOutput {
+    pub success: bool,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+/// Runs `executable args...` with cwd `cwd` and exactly `env` as the
+/// child's environment (no shell, no inherited parent environment beyond
+/// what the caller explicitly includes in `env` — see [`controlled_env`]/
+/// [`controlled_env_with`] to build a safe baseline), enforcing `timeout`
+/// via the same poll-then-kill pattern [`execute`] uses.
+///
+/// Unlike `execute`, this makes no assumption about the child's output
+/// format — it exists for driving a real external build tool that does
+/// not speak OmniForge's own adapter wire protocol (today: Gradle, for the
+/// `android-gradle` adapter). Both stdout and stderr are captured in full
+/// (not just a tail) so a caller can report a build tool's real diagnostic
+/// output on failure.
+pub fn run_tool(
+    executable: &str,
+    args: &[String],
+    cwd: &Path,
+    env: &[(String, String)],
+    timeout: Duration,
+) -> Result<ToolOutput, Diagnostic> {
+    let mut child = Command::new(executable)
+        .args(args)
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env_clear()
+        .envs(env.iter().cloned())
+        .spawn()
+        .map_err(|e| {
+            Diagnostic::error(
+                "E-TOOL-SPAWN-FAILED",
+                format!("failed to start '{executable}': {e}"),
+            )
+        })?;
+
+    let stdout = child.stdout.take().expect("stdout was piped");
+    let stderr = child.stderr.take().expect("stderr was piped");
+
+    let (out_tx, out_rx) = mpsc::channel::<String>();
+    thread::spawn(move || {
+        let mut reader = stdout;
+        let mut buf = String::new();
+        let _ = reader.read_to_string(&mut buf);
+        let _ = out_tx.send(buf);
+    });
+    let (err_tx, err_rx) = mpsc::channel::<String>();
+    thread::spawn(move || {
+        let mut reader = stderr;
+        let mut buf = String::new();
+        let _ = reader.read_to_string(&mut buf);
+        let _ = err_tx.send(buf);
+    });
+
+    let start = Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {
+                if start.elapsed() > timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(Diagnostic::error(
+                        "E-TOOL-TIMEOUT",
+                        format!("'{executable}' did not finish within {timeout:?} and was killed"),
+                    ));
+                }
+                thread::sleep(Duration::from_millis(25));
+            }
+            Err(e) => {
+                return Err(Diagnostic::error(
+                    "E-TOOL-WAIT-FAILED",
+                    format!("failed to wait on '{executable}': {e}"),
+                ));
+            }
+        }
+    };
+
+    let stdout_text = out_rx.recv_timeout(DRAIN_GRACE).unwrap_or_default();
+    let stderr_text = err_rx.recv_timeout(DRAIN_GRACE).unwrap_or_default();
+    Ok(ToolOutput {
+        success: status.success(),
+        stdout: stdout_text,
+        stderr: stderr_text,
+    })
 }
 
 fn materialize_script(
@@ -801,5 +906,87 @@ mod tests {
         let dir = tempdir().unwrap();
         let err = materialize_script(dir.path(), "../escape", "adapter.py", "x").unwrap_err();
         assert_eq!(err.code, "E-ADAPTER-INVALID-SCRIPT-NAME");
+    }
+
+    #[test]
+    fn controlled_env_with_adds_extra_vars_on_top_of_the_allowlist() {
+        let extra = vec![("OMNIFORGE_TEST_EXTRA".to_string(), "value".to_string())];
+        let env = controlled_env_with(&extra);
+        assert!(env
+            .iter()
+            .any(|(k, v)| k == "OMNIFORGE_TEST_EXTRA" && v == "value"));
+        // The base allowlist is still present underneath.
+        assert!(env.iter().any(|(k, _)| k == "PATH"));
+    }
+
+    #[test]
+    fn run_tool_captures_stdout_and_a_successful_exit() {
+        let Some(python) = resolve_executable(&candidates()) else {
+            return;
+        };
+        let dir = tempdir().unwrap();
+        let args = vec!["-c".to_string(), "print('hello from run_tool')".to_string()];
+        let out = run_tool(
+            &python,
+            &args,
+            dir.path(),
+            &controlled_env(),
+            Duration::from_secs(10),
+        )
+        .unwrap();
+        assert!(out.success);
+        assert!(out.stdout.contains("hello from run_tool"));
+    }
+
+    #[test]
+    fn run_tool_reports_a_nonzero_exit_without_treating_it_as_a_spawn_failure() {
+        let Some(python) = resolve_executable(&candidates()) else {
+            return;
+        };
+        let dir = tempdir().unwrap();
+        let args = vec!["-c".to_string(), "import sys; sys.exit(3)".to_string()];
+        let out = run_tool(
+            &python,
+            &args,
+            dir.path(),
+            &controlled_env(),
+            Duration::from_secs(10),
+        )
+        .unwrap();
+        assert!(!out.success);
+    }
+
+    #[test]
+    fn run_tool_times_out_on_a_hanging_process() {
+        let Some(python) = resolve_executable(&candidates()) else {
+            return;
+        };
+        let dir = tempdir().unwrap();
+        let args = vec!["-c".to_string(), "import time; time.sleep(60)".to_string()];
+        let start = Instant::now();
+        let err = run_tool(
+            &python,
+            &args,
+            dir.path(),
+            &controlled_env(),
+            Duration::from_millis(300),
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "E-TOOL-TIMEOUT");
+        assert!(start.elapsed() < Duration::from_secs(10));
+    }
+
+    #[test]
+    fn run_tool_fails_cleanly_for_a_missing_executable() {
+        let dir = tempdir().unwrap();
+        let err = run_tool(
+            "definitely-not-a-real-executable-xyz123",
+            &[],
+            dir.path(),
+            &controlled_env(),
+            Duration::from_secs(5),
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "E-TOOL-SPAWN-FAILED");
     }
 }

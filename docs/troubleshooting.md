@@ -16,7 +16,7 @@ list of every code in the source — it's the ones you're likely to hit.
 | `E-RESOLVE-NO-IMPLEMENTATION` | A component has no `implementations.<target>` entry. | The message lists which targets it *does* support — add the missing one or disable that target. |
 | `E-RESOLVE-CAPABILITY` | The implementation's adapter doesn't declare this target, this component kind, or the `compile` operation. | Check `omni adapter list` for what the adapter actually supports. |
 | `E-RESOLVE-CYCLE` | Component dependencies form a cycle. | The message prints the actual cycle, e.g. `a -> b -> a`. |
-| `E-BUILD-ADAPTER-UNAVAILABLE` | The configured adapter isn't compiled into this CLI. | Run `omni adapter list`; today `web-static` and `python-backend` exist. |
+| `E-BUILD-ADAPTER-UNAVAILABLE` | The configured adapter isn't compiled into this CLI. | Run `omni adapter list`; today `web-static`, `python-backend`, and `android-gradle` exist. |
 | `E-WEB-MISSING-INPUT` | A component's required input has no value from `web/app.yaml` and no default. | Add it under `root.inputs` in the app manifest, or give the component a default. |
 | `E-WEB-ASSET-MISSING` | A CSS/JS/asset file listed in `web/app.yaml`'s `public:` section doesn't exist under `public/`. | Create the file or remove it from the list. |
 | `E-WEB-TEMPLATE-RENDER` | The template references `{{something}}` that isn't a declared input. | Either declare it in `interface.inputs`, or fix the typo in the template. |
@@ -36,6 +36,10 @@ list of every code in the source — it's the ones you're likely to hit.
 | `E-PACKAGE-NOT-BUILT` | `omni package <target>` was run before `omni build <target>` — there's no `dist/<target>/` to archive. | Run `omni build <target>` (or `omni build all`) first. |
 | `E-PACKAGE-UNKNOWN-TARGET` | `omni package <name>` named a target that isn't a recognized OmniForge target name. | Check the spelling, or use `all` to package every enabled target. |
 | `E-PACKAGE-IO` | A filesystem error occurred while reading the build output or writing the zip archive. | The message includes the underlying OS error; check disk space and permissions on the project's `dist/` directory. |
+| `E-ANDROID-TOOLCHAIN-MISSING` | `omni build android` could not find a complete Android SDK/JDK/Gradle on this machine. | The message names exactly what's missing; run `omni doctor` for details, or set `ANDROID_HOME`/`JAVA_HOME`/`GRADLE_HOME` — see [ADR 0011](decisions/0011-android-gradle-adapter.md). |
+| `E-ANDROID-BUILD-FAILED` | Gradle itself reported a build failure. | The diagnostic's explanation includes Gradle's own stdout/stderr tail — this is almost always a real Gradle/AGP/Kotlin error, not an OmniForge bug; read it like any other Gradle build failure. |
+| `E-ANDROID-APK-MISSING` / `E-ANDROID-APK-INVALID` | Gradle reported success, but no APK (or an invalid one) was found at the expected output path. | This indicates an adapter or Gradle-version-compatibility bug, not a project misconfiguration — please report it, including `omni doctor`'s output. |
+| `E-ANDROID-MISSING-INPUT` / `E-ANDROID-TEMPLATE-RENDER` | Same meaning as `E-WEB-MISSING-INPUT`/`E-WEB-TEMPLATE-RENDER`, for an android-target component's `.kt.tmpl` template instead of a web `.html.tmpl`. | Add the missing input under `root.inputs` in `android/app.yaml`, or fix the template's `{{placeholder}}`. |
 
 ## General approach
 
@@ -51,4 +55,6 @@ list of every code in the source — it's the ones you're likely to hit.
    would mean something unusual about your Rust toolchain. For
    `python-backend`, `doctor` tries `python3`, `python`, and (on Windows)
    `py` before reporting it missing — if all three are genuinely absent,
-   install Python 3.
+   install Python 3. For `android-gradle`, `doctor` reports the real
+   SDK/JDK/Gradle paths it found (or exactly which of the three is
+   missing) — see [ADR 0011](decisions/0011-android-gradle-adapter.md).

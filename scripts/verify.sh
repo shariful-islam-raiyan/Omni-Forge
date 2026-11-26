@@ -12,7 +12,13 @@ echo "==> cargo clippy"
 cargo clippy --workspace --all-targets -- -D warnings
 
 echo "==> cargo test"
-cargo test --workspace
+# OMNIFORGE_RUN_ANDROID_E2E opts into the real Gradle build in
+# omni-android-adapter's own test suite (see
+# docs/decisions/0011-android-gradle-adapter.md) -- off by default in CI's
+# shared gate, on here since this script is meant to exercise everything
+# real on a machine that has the toolchain; the test itself still skips
+# gracefully if it doesn't.
+OMNIFORGE_RUN_ANDROID_E2E=1 cargo test --workspace
 
 echo "==> omni doctor"
 cargo run -q -p omni-cli --manifest-path Cargo.toml -- doctor || true
@@ -49,6 +55,20 @@ echo "==> building examples/hello-fullstack (both targets, requires a Python 3 t
   test -f dist/build-report.json
   cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
 )
+
+echo "==> building examples/hello-android (requires a real local Android SDK/JDK/Gradle; skipped otherwise)"
+if cargo run -q -p omni-cli --manifest-path Cargo.toml -- doctor 2>&1 | grep -q "android-gradle .* — OK"; then
+  (
+    cd examples/hello-android
+    cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+    cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build android
+    test -f dist/android/app-debug.apk
+    test -f dist/build-report.json
+    cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
+  )
+else
+  echo "    skipped: 'omni doctor' reports the android-gradle toolchain is not available on this machine"
+fi
 
 echo "==> building examples/navbar-demo (component composition)"
 (

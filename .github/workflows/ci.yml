@@ -164,3 +164,48 @@ jobs:
           name: playwright-report
           path: integration-tests/browser/playwright-report/
           retention-days: 7
+
+  android:
+    name: android-gradle adapter (real Gradle build)
+    # Separate job, deliberately, same principle as browser-e2e: a real
+    # Android build depends on this runner image's own Android SDK/JDK/
+    # Gradle versions actually being compatible with this adapter's
+    # pinned AGP/Kotlin/compileSdk combination (see
+    # docs/decisions/0011-android-gradle-adapter.md) -- verified directly
+    # on this project's own development machine, but NOT verified against
+    # GitHub-hosted runners as part of that milestone (no access to run
+    # GitHub Actions from that environment). Isolating this job means a
+    # real CI-image incompatibility here is a visible, triageable finding
+    # rather than a break in the shared fmt/clippy/test gate above.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: omni doctor (shows exactly which SDK/JDK/Gradle this runner has)
+        run: cargo run -q -p omni-cli --manifest-path Cargo.toml -- doctor || true
+
+      - name: Run the real android-gradle adapter test suite
+        env:
+          OMNIFORGE_RUN_ANDROID_E2E: "1"
+        run: cargo test -p omni-android-adapter
+
+      - name: Build examples/hello-android and verify the real APK
+        run: |
+          cd examples/hello-android
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build android
+          test -f dist/android/app-debug.apk
+          unzip -l dist/android/app-debug.apk | grep -q AndroidManifest.xml
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean

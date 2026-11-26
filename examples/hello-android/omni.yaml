@@ -1,0 +1,14 @@
+schema: omniforge.dev/project/v1
+
+project:
+  name: hello-android
+  version: 0.1.0
+
+targets:
+  android:
+    enabled: true
+    adapter: android-gradle
+    entry: android/app.yaml
+
+components:
+  directory: lib/components
