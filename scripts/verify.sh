@@ -50,4 +50,15 @@ echo "==> building examples/hello-fullstack (both targets, requires a Python 3 t
   cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
 )
 
+echo "==> building examples/navbar-demo (component composition)"
+(
+  cd examples/navbar-demo
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build web
+  test -f dist/web/index.html
+  grep -q 'class="navbar"' dist/web/index.html
+  grep -q 'class="page"' dist/web/index.html
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
+)
+
 echo "All checks passed."

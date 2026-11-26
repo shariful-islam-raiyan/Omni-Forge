@@ -1,0 +1,24 @@
+schema: omniforge.dev/component/v1
+
+name: ui.navbar
+version: 1.0.0
+kind: ui
+
+interface:
+  inputs:
+    brand:
+      type: string
+      required: true
+    home_label:
+      type: string
+      required: false
+      default: "Home"
+    about_label:
+      type: string
+      required: false
+      default: "About"
+
+implementations:
+  web:
+    adapter: web-static
+    source: ./navbar.html.tmpl

@@ -23,6 +23,18 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "composes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["component"],
+        "additionalProperties": false,
+        "properties": {
+          "component": { "type": "string" },
+          "inputs": { "type": "object" }
+        }
+      }
+    },
     "interface": {
       "type": "object",
       "additionalProperties": false,

@@ -1,0 +1,12 @@
+schema: omniforge.dev/webapp/v1
+
+title: "Component composition demo"
+
+root:
+  component: ui.page
+  inputs:
+    heading: "Component composition demo"
+
+public:
+  css:
+    - style.css

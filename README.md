@@ -190,6 +190,7 @@ resource this project doesn't have yet.
 | API contract format + validation | Implemented | A **custom** format (not OpenAPI — see below), with build-time validation and reusable request/response validators |
 | Full-stack example (web ↔ backend over a declared contract) | Implemented | `examples/hello-fullstack`, checked at the HTTP, process-lifecycle, and real-browser levels |
 | Local build cache | Implemented | Content-addressed, scoped (see [docs/caching.md](docs/caching.md)) |
+| Component composition (one component's rendered output embedded in another's) | Implemented | `composes` in `component.yaml`; `web-static` only; see [ADR 0010](docs/decisions/0010-component-composition-via-slots.md) and `examples/navbar-demo`. A slot's inputs are static, not interpolated from the parent's own inputs — see that ADR's Consequences |
 | `omni test` | Partial | Reports honestly that no adapter implements the `test` operation yet — never fakes a pass |
 | Parallel build scheduling | Planned | The dependency graph is already schedule-ready; no scheduler exists |
 | Third-party adapter trust/enablement | Planned | Only adapters this repository ships and reviews can run today |
@@ -281,6 +282,10 @@ examples/hello-web/        A complete, buildable web example project.
 examples/hello-backend/    A complete, buildable backend example project.
 examples/hello-fullstack/  Web + backend together, one API contract, a
                             real browser-side API client — see its README.
+examples/navbar-demo/      Component composition: a ui.page component
+                            embeds a reusable ui.navbar component's
+                            rendered output via 'composes' — see its
+                            README and ADR 0010.
 integration-tests/browser/ The real-browser (Playwright) E2E suite —
                             additive, Node-based, outside `cargo test`.
 fixtures/                  Static valid/invalid omni.yaml fixtures used
@@ -378,9 +383,9 @@ omni build web
 omni dev             # serves every enabled target; prints each one's URL; Ctrl-C to stop
 ```
 
-Two complete, ready-made examples ship in this repository — see
+Four complete, ready-made examples ship in this repository — see
 [docs/getting-started.md](docs/getting-started.md) for a full guided
-walkthrough of all three:
+walkthrough of all of them:
 
 - [`examples/hello-web`](examples/hello-web) — the in-process
   `web-static` adapter.
@@ -391,6 +396,10 @@ walkthrough of all three:
   talking to each other over a declared, validated contract; see
   [Full-stack walkthrough](#full-stack-walkthrough-web--python-backend)
   below.
+- [`examples/navbar-demo`](examples/navbar-demo) — component
+  composition: a `ui.page` component embeds a separately-authored,
+  reusable `ui.navbar` component's rendered output via `composes` — see
+  [ADR 0010](docs/decisions/0010-component-composition-via-slots.md).
 
 ## CLI command reference
 
@@ -511,7 +520,12 @@ A **component** (`component.yaml`) declares a name, kind (`ui`,
 defaults, required-ness), and one implementation per target it supports.
 The resolver checks every adapter capability (target, kind, operation)
 *before* ever calling into an adapter — an adapter is never invoked for
-something it didn't declare support for.
+something it didn't declare support for. A component may also declare
+`composes`: named slots whose value is another component's fully
+rendered, already-escaped output, letting components like a navbar or
+footer be written once and embedded inside others — see
+[ADR 0010](docs/decisions/0010-component-composition-via-slots.md) and
+[`examples/navbar-demo`](examples/navbar-demo).
 
 An **API contract** (`api-contract.json`) is a small, custom,
 OpenAPI-*inspired* document — paths, HTTP methods, request/response
@@ -550,7 +564,7 @@ development and production behavior.
 
 ```sh
 cargo build --workspace
-cargo test --workspace      # 115 tests: unit + integration + adapter conformance + dev-process lifecycle
+cargo test --workspace      # 120 tests: unit + integration + adapter conformance + dev-process lifecycle + composition
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 bash scripts/verify.sh      # all of the above, plus end-to-end builds of all three examples

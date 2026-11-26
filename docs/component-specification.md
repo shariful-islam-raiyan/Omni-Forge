@@ -15,6 +15,13 @@ kind: ui                 # ui | logic | service | library | tool
 dependencies:            # optional; other component names this one needs
   - ui.layout
 
+composes:                # optional; see "Composition" below
+  header:                 # slot name — usable as {{header}} in this
+                          # component's own template
+    component: ui.layout  # must also appear in 'dependencies' above
+    inputs:                # passed to ui.layout like root.inputs below
+      title: "Welcome"
+
 interface:
   inputs:
     title:
@@ -156,3 +163,35 @@ dependency that doesn't exist, has no implementation for the target, or
 whose adapter lacks the right capability fails resolution with the same
 diagnostics as if it were requested directly. Cycles are detected and
 reported as `E-RESOLVE-CYCLE` with the full cycle path.
+
+## Composition
+
+`composes` (optional, defaults to empty) lets a component embed *another*
+component's fully-rendered output as a named placeholder in its own
+template — see
+[ADR 0010](decisions/0010-component-composition-via-slots.md) for the full
+design rationale and [`examples/navbar-demo`](../examples/navbar-demo) for
+a complete, buildable example (`ui.page` composing `ui.navbar`).
+
+Each key under `composes` is a **slot name**, usable as `{{slotname}}` in
+this component's own template exactly like a declared input — except its
+value is the real, recursively-rendered, already-HTML-escaped output of
+the named child component, not a scalar. Rules, enforced at component
+discovery time (`components.rs::discover_components`):
+
+- `composes.<slot>.component` **must** also appear in this manifest's
+  `dependencies` list — composition reuses the resolver's existing
+  dependency graph and cycle detection rather than inventing a second one.
+  Violating this is `E-COMPONENT-COMPOSE-UNDECLARED-DEPENDENCY`.
+- A slot name **must not** collide with a declared `interface.inputs` name
+  (both share one `{{name}}` placeholder namespace for that component's
+  template). Violating this is `E-COMPONENT-COMPOSE-NAME-CONFLICT`.
+- `composes.<slot>.inputs` are static values written in this
+  `component.yaml` — **not** interpolated from this component's own
+  inputs. Passing a parent's own input value down into a slot is not
+  supported today; see ADR 0010's Consequences section.
+
+Only the `web-static` adapter currently implements composition
+(`crates/omni-web-adapter/src/lib.rs::render_component`); `composes` is
+modeled generically in `omni-core` (schema + discovery-time validation),
+so another adapter could implement it the same way, but none does yet.

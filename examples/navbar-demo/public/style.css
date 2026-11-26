@@ -1,0 +1,29 @@
+.navbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #1f2937;
+  color: #fff;
+  font-family: sans-serif;
+}
+
+.navbar-brand {
+  font-weight: bold;
+  margin-right: 1rem;
+}
+
+.navbar-link {
+  color: #fff;
+  text-decoration: none;
+}
+
+.navbar-link:hover {
+  text-decoration: underline;
+}
+
+.page {
+  font-family: sans-serif;
+  padding: 1.5rem;
+  max-width: 40rem;
+}

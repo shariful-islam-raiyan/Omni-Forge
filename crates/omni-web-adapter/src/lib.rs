@@ -1,14 +1,18 @@
 //! The `web-static` adapter.
 //!
 //! Scope (see docs/architecture.md and docs/roadmap.md for what is
-//! deliberately **not** here): takes one project, renders exactly one root
-//! UI component (plus whatever it statically depends on being available —
-//! today the example project only exercises a single component) into one
-//! `index.html`, copies declared CSS/JS/asset files verbatim, and writes a
-//! build manifest. There is no routing, no server-side data fetching, no
-//! hydration, and no JavaScript execution engine. Component rendering is a
-//! fixed `{{field}}` substitution template (see `template.rs`), not a
-//! general-purpose templating or scripting language.
+//! deliberately **not** here): takes one project, renders one root UI
+//! component into one `index.html`, copies declared CSS/JS/asset files
+//! verbatim, and writes a build manifest. There is no routing, no
+//! server-side data fetching, no hydration, and no JavaScript execution
+//! engine. Component rendering is a fixed `{{field}}` substitution template
+//! (see `template.rs`), not a general-purpose templating or scripting
+//! language — the one exception is `ComponentManifest::composes`: a
+//! component may declare named slots whose value is *another* component,
+//! fully rendered through this same recursive, fixed mechanism (see
+//! `render_component` below and
+//! `docs/decisions/0010-component-composition-via-slots.md`). That is
+//! composition, not a template language growing conditionals or loops.
 
 mod manifest;
 mod template;
@@ -68,6 +72,192 @@ struct PreparedPage {
 }
 
 impl WebStaticAdapter {
+    /// Renders one component (the root, or a composed child) into an HTML
+    /// fragment: resolves its manifest, validates/merges `input_overrides`
+    /// against its declared inputs, recursively renders every composition
+    /// slot in `composes` (see `ComponentManifest::composes`) into trusted,
+    /// pre-escaped HTML, then runs the component's own template through
+    /// `template::render`. `stack` holds the chain of component names
+    /// currently being rendered, purely as a defense-in-depth guard against
+    /// runaway recursion — the resolver (`omni_core::resolver::resolve`)
+    /// already guarantees `ctx.components` is acyclic, and
+    /// `components.rs::discover_components` already requires every
+    /// `composes` target to be a declared `dependencies` entry, so a real
+    /// cycle here would mean that guarantee was somehow bypassed.
+    fn render_component(
+        &self,
+        ctx: &BuildContext,
+        component_name: &str,
+        input_overrides: &BTreeMap<String, Value>,
+        diags: &mut Diagnostics,
+        stack: &mut Vec<String>,
+    ) -> Option<String> {
+        if stack.iter().any(|n| n == component_name) {
+            diags.push(
+                Diagnostic::error(
+                    "E-WEB-COMPOSE-CYCLE",
+                    format!(
+                        "composition cycle detected: {} -> {component_name}",
+                        stack.join(" -> ")
+                    ),
+                )
+                .with_component(component_name.to_string())
+                .with_target("web"),
+            );
+            return None;
+        }
+
+        let Some(resolved) = ctx.components.iter().find(|c| c.name == component_name) else {
+            diags.push(
+                Diagnostic::error(
+                    "E-WEB-ROOT-MISSING",
+                    format!("component '{component_name}' was not resolved for target 'web'"),
+                )
+                .with_component(component_name.to_string())
+                .with_target("web"),
+            );
+            return None;
+        };
+
+        // Re-read the component manifest's declared interface + composes +
+        // template source from disk (the resolver only kept the chosen
+        // implementation + manifest_dir, not the full interface) so we can
+        // validate inputs and slots.
+        let component_yaml_path = resolved.manifest_dir.join("component.yaml");
+        let component_raw = match fs::read_to_string(&component_yaml_path) {
+            Ok(r) => r,
+            Err(e) => {
+                diags.push(
+                    Diagnostic::error("E-WEB-COMPONENT-IO", format!("{e}"))
+                        .with_file(component_yaml_path.display().to_string()),
+                );
+                return None;
+            }
+        };
+        let component_manifest: omni_core::spec::component::ComponentManifest =
+            match serde_yaml::from_str(&component_raw) {
+                Ok(m) => m,
+                Err(e) => {
+                    diags.push(
+                        Diagnostic::error("E-WEB-COMPONENT-PARSE", format!("{e}"))
+                            .with_file(component_yaml_path.display().to_string()),
+                    );
+                    return None;
+                }
+            };
+
+        let declared_inputs: BTreeSet<String> = component_manifest
+            .interface
+            .inputs
+            .keys()
+            .cloned()
+            .collect();
+        let declared: BTreeSet<String> = declared_inputs
+            .iter()
+            .cloned()
+            .chain(component_manifest.composes.keys().cloned())
+            .collect();
+        let mut values: BTreeMap<String, template::SlotValue> = BTreeMap::new();
+
+        for (name, field) in &component_manifest.interface.inputs {
+            if let Some(default) = &field.default {
+                values.insert(
+                    name.clone(),
+                    template::SlotValue::Escaped(json_scalar_to_string(default)),
+                );
+            }
+        }
+        for (name, value) in input_overrides {
+            if !declared_inputs.contains(name) {
+                diags.push(Diagnostic::warning(
+                    "W-WEB-UNKNOWN-INPUT",
+                    format!("input '{name}' is not declared on component '{component_name}'"),
+                ));
+                continue;
+            }
+            values.insert(
+                name.clone(),
+                template::SlotValue::Escaped(json_scalar_to_string(value)),
+            );
+        }
+        for (name, field) in &component_manifest.interface.inputs {
+            if field.required && !values.contains_key(name) {
+                diags.push(
+                    Diagnostic::error(
+                        "E-WEB-MISSING-INPUT",
+                        format!("required input '{name}' for component '{component_name}' was not provided and has no default"),
+                    )
+                    .with_component(component_name.to_string())
+                    .with_target("web"),
+                );
+            }
+        }
+        if diags.has_errors() {
+            return None;
+        }
+
+        stack.push(component_name.to_string());
+        for (slot, compose) in &component_manifest.composes {
+            let child_html =
+                self.render_component(ctx, &compose.component, &compose.inputs, diags, stack);
+            match child_html {
+                Some(html) => {
+                    values.insert(slot.clone(), template::SlotValue::Raw(html));
+                }
+                None => {
+                    stack.pop();
+                    return None;
+                }
+            }
+        }
+        stack.pop();
+
+        let implementation = match component_manifest.implementations.get("web") {
+            Some(i) => i,
+            None => {
+                diags.push(Diagnostic::error(
+                    "E-WEB-NO-IMPLEMENTATION",
+                    format!("component '{component_name}' has no web implementation"),
+                ));
+                return None;
+            }
+        };
+        let template_path =
+            match omni_core::paths::safe_join(&resolved.manifest_dir, &implementation.source) {
+                Ok(p) => p,
+                Err(e) => {
+                    diags.push(Diagnostic::error("E-WEB-UNSAFE-SOURCE", format!("{e}")));
+                    return None;
+                }
+            };
+        let template_src = match fs::read_to_string(&template_path) {
+            Ok(s) => s,
+            Err(e) => {
+                diags.push(
+                    Diagnostic::error(
+                        "E-WEB-TEMPLATE-IO",
+                        format!("could not read template '{}': {e}", template_path.display()),
+                    )
+                    .with_file(template_path.display().to_string()),
+                );
+                return None;
+            }
+        };
+
+        match template::render(&template_src, &values, &declared) {
+            Ok(html) => Some(html),
+            Err(errors) => {
+                for e in errors {
+                    diags.push(
+                        Diagnostic::error("E-WEB-TEMPLATE-RENDER", e)
+                            .with_file(template_path.display().to_string()),
+                    );
+                }
+                None
+            }
+        }
+    }
+
     fn prepare(&self, ctx: &BuildContext, diags: &mut Diagnostics) -> Option<PreparedPage> {
         let Some(entry_path) = &ctx.entry_path else {
             diags.push(
@@ -147,138 +337,14 @@ impl WebStaticAdapter {
             return None;
         }
 
-        let Some(root_component) = ctx.components.iter().find(|c| c.name == app.root.component)
-        else {
-            diags.push(
-                Diagnostic::error(
-                    "E-WEB-ROOT-MISSING",
-                    format!(
-                        "root component '{}' was not resolved for target 'web'",
-                        app.root.component
-                    ),
-                )
-                .with_component(app.root.component.clone())
-                .with_target("web"),
-            );
-            return None;
-        };
-
-        // Re-read the component manifest's declared interface + template
-        // source from disk (the resolver only kept the chosen implementation
-        // + manifest_dir, not the full interface) so we can validate inputs.
-        let component_yaml_path = root_component.manifest_dir.join("component.yaml");
-        let component_raw = match fs::read_to_string(&component_yaml_path) {
-            Ok(r) => r,
-            Err(e) => {
-                diags.push(
-                    Diagnostic::error("E-WEB-COMPONENT-IO", format!("{e}"))
-                        .with_file(component_yaml_path.display().to_string()),
-                );
-                return None;
-            }
-        };
-        let component_manifest: omni_core::spec::component::ComponentManifest =
-            match serde_yaml::from_str(&component_raw) {
-                Ok(m) => m,
-                Err(e) => {
-                    diags.push(
-                        Diagnostic::error("E-WEB-COMPONENT-PARSE", format!("{e}"))
-                            .with_file(component_yaml_path.display().to_string()),
-                    );
-                    return None;
-                }
-            };
-
-        let declared: BTreeSet<String> = component_manifest
-            .interface
-            .inputs
-            .keys()
-            .cloned()
-            .collect();
-        let mut values: BTreeMap<String, String> = BTreeMap::new();
-
-        for (name, field) in &component_manifest.interface.inputs {
-            if let Some(default) = &field.default {
-                values.insert(name.clone(), json_scalar_to_string(default));
-            }
-        }
-        for (name, value) in &app.root.inputs {
-            if !declared.contains(name) {
-                diags.push(Diagnostic::warning(
-                    "W-WEB-UNKNOWN-INPUT",
-                    format!(
-                        "input '{name}' is not declared on component '{}'",
-                        app.root.component
-                    ),
-                ));
-                continue;
-            }
-            values.insert(name.clone(), json_scalar_to_string(value));
-        }
-        for (name, field) in &component_manifest.interface.inputs {
-            if field.required && !values.contains_key(name) {
-                diags.push(
-                    Diagnostic::error(
-                        "E-WEB-MISSING-INPUT",
-                        format!("required input '{name}' for component '{}' was not provided and has no default", app.root.component),
-                    )
-                    .with_component(app.root.component.clone())
-                    .with_target("web"),
-                );
-            }
-        }
-        if diags.has_errors() {
-            return None;
-        }
-
-        let implementation = match component_manifest.implementations.get("web") {
-            Some(i) => i,
-            None => {
-                diags.push(Diagnostic::error(
-                    "E-WEB-NO-IMPLEMENTATION",
-                    format!(
-                        "component '{}' has no web implementation",
-                        app.root.component
-                    ),
-                ));
-                return None;
-            }
-        };
-        let template_path =
-            match omni_core::paths::safe_join(&root_component.manifest_dir, &implementation.source)
-            {
-                Ok(p) => p,
-                Err(e) => {
-                    diags.push(Diagnostic::error("E-WEB-UNSAFE-SOURCE", format!("{e}")));
-                    return None;
-                }
-            };
-        let template_src = match fs::read_to_string(&template_path) {
-            Ok(s) => s,
-            Err(e) => {
-                diags.push(
-                    Diagnostic::error(
-                        "E-WEB-TEMPLATE-IO",
-                        format!("could not read template '{}': {e}", template_path.display()),
-                    )
-                    .with_file(template_path.display().to_string()),
-                );
-                return None;
-            }
-        };
-
-        let fragment = match template::render(&template_src, &values, &declared) {
-            Ok(html) => html,
-            Err(errors) => {
-                for e in errors {
-                    diags.push(
-                        Diagnostic::error("E-WEB-TEMPLATE-RENDER", e)
-                            .with_file(template_path.display().to_string()),
-                    );
-                }
-                return None;
-            }
-        };
+        let mut stack: Vec<String> = Vec::new();
+        let fragment = self.render_component(
+            ctx,
+            &app.root.component,
+            &app.root.inputs,
+            diags,
+            &mut stack,
+        )?;
 
         // Verify every referenced public asset exists under <project>/public
         // before claiming success.

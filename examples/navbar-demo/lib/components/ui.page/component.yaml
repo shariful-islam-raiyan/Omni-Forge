@@ -1,0 +1,34 @@
+schema: omniforge.dev/component/v1
+
+name: ui.page
+version: 1.0.0
+kind: ui
+
+# ui.navbar's rendered output is spliced into this component's own template
+# under the 'nav' slot (see composes below) — it must therefore also be
+# listed here as a dependency, exactly like any other component dependency.
+dependencies:
+  - ui.navbar
+
+composes:
+  nav:
+    component: ui.navbar
+    inputs:
+      brand: "My Site"
+      home_label: "Home"
+      about_label: "About"
+
+interface:
+  inputs:
+    heading:
+      type: string
+      required: true
+    body:
+      type: string
+      required: false
+      default: "This page's navigation bar above was rendered from a separate, reusable ui.navbar component, not copy-pasted markup."
+
+implementations:
+  web:
+    adapter: web-static
+    source: ./page.html.tmpl

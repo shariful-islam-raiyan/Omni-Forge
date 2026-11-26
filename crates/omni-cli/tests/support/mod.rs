@@ -34,10 +34,23 @@ use omni_adapter_api::devserver::{self, ReadyCheck};
 /// Recursively copies `src` into `dst` (which must already exist). Used to
 /// give each test its own private copy of `examples/hello-fullstack` so
 /// concurrently-running tests never race on the same `dist/` output.
+///
+/// Deliberately skips `dist/` and `.omniforge/` (build output and the local
+/// build cache — both gitignored, never part of "the project"): if the real
+/// `examples/hello-fullstack` on disk has ever actually been built (e.g. by
+/// running `omni build` or `scripts/verify.sh` by hand), copying those
+/// directories verbatim would hand a "fresh" test its own real, stale cache
+/// entries, silently turning an expected cache miss into a hit. This was a
+/// real, reproducible bug (not flakiness): `editing_the_contract_busts_the_
+/// backend_build_cache` fails deterministically once `examples/hello-
+/// fullstack/.omniforge/cache` exists on disk, for exactly this reason.
 pub fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
         let file_type = entry.file_type()?;
+        if file_type.is_dir() && matches!(entry.file_name().to_str(), Some("dist" | ".omniforge")) {
+            continue;
+        }
         let dst_path = dst.join(entry.file_name());
         if file_type.is_dir() {
             std::fs::create_dir_all(&dst_path)?;

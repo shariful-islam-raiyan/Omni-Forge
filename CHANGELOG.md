@@ -1,5 +1,62 @@
 # Changelog
 
+## Unreleased — Component composition
+
+- **New: component composition.** A component's `component.yaml` may
+  declare `composes`: named slots whose value is another, separately
+  authored component's fully-rendered, HTML-escaped output — e.g. a
+  `ui.page` component embedding a reusable `ui.navbar` component, rather
+  than copy-pasting its markup. See
+  [ADR 0010](docs/decisions/0010-component-composition-via-slots.md) for
+  the full design and why this doesn't reopen
+  [ADR 0003](docs/decisions/0003-template-only-rendering.md)'s rejection
+  of a general templating language (no loops, no conditionals, no new
+  "execute this string" mechanism — just one more recursive call to the
+  same fixed renderer).
+- `specs/component.schema.json` gained an optional `composes` field
+  (object, slot name → `{component, inputs}`), backward compatible
+  (every existing component manifest has none and is unaffected).
+- `crates/omni-core/src/components.rs::discover_components` validates
+  every `composes` entry at discovery time: the named component must
+  already be a declared `dependencies` entry
+  (`E-COMPONENT-COMPOSE-UNDECLARED-DEPENDENCY`, reusing the resolver's
+  existing dependency graph and cycle detection instead of a second one),
+  and a slot name must not collide with a declared input name
+  (`E-COMPONENT-COMPOSE-NAME-CONFLICT`).
+- `crates/omni-web-adapter`: `template.rs`'s renderer gained a two-variant
+  `SlotValue` (`Escaped`/`Raw`) so a composed slot's pre-rendered HTML is
+  inserted verbatim while every plain input is still always HTML-escaped,
+  exactly as before. `lib.rs` gained `render_component`, a recursive
+  rendering function (the former inline root-rendering logic, generalized)
+  with its own defense-in-depth recursion-stack cycle guard
+  (`E-WEB-COMPOSE-CYCLE`) on top of the resolver's graph-level guarantee.
+- New example: `examples/navbar-demo` now demonstrates real composition
+  (`ui.page` composing `ui.navbar`), with its own README, wired into
+  `scripts/verify.sh` and `.github/workflows/ci.yml`.
+- Added 5 tests (120 total; was 115): 3 in `omni-core` (undeclared
+  dependency rejected, name conflict rejected, valid slot accepted), 1 in
+  `omni-web-adapter`'s template renderer (a raw slot value is not
+  double-escaped), 1 end-to-end in
+  `crates/omni-web-adapter/tests/compile.rs` (a composed child's
+  deliberately script-looking input still comes out escaped once spliced
+  into the parent's output).
+- **Fixed a real, reproducible test-isolation bug**, found while
+  re-verifying this milestone (not caused by it):
+  `crates/omni-cli/tests/support/mod.rs::copy_dir_all` — used by
+  `fullstack_http.rs`/`dev_lifecycle.rs` to give each test its own private
+  copy of an example project — copied `dist/` and `.omniforge/` (build
+  output and the local build cache) verbatim along with everything else.
+  If the real `examples/hello-fullstack` on disk had ever actually been
+  built by hand (e.g. running `scripts/verify.sh`, which does exactly
+  that), every subsequent test run inherited real, stale cache entries,
+  deterministically turning
+  `fullstack_http.rs::editing_the_contract_busts_the_backend_build_cache`'s
+  expected first-build cache *miss* into a *hit* and failing the test —
+  reproduced, root-caused, and fixed in this milestone (now explicitly
+  skips copying both directories; verified by re-populating the real
+  example's `.omniforge/cache` by hand and re-running the previously
+  failing test, which now passes).
+
 ## Unreleased — Real packaging, and a public release
 
 - New `omni package <target|all>`: archives an already-built target's

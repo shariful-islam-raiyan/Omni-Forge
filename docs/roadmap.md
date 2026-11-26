@@ -67,6 +67,7 @@ resource (a toolchain, a sandboxing design) this milestone didn't produce.
 | `service` kind, executable | Implemented | via `python-backend` |
 | `logic`/`library`/`tool` kinds, modeled | Partial | Schema accepts and validates them; no adapter executes them |
 | Multiple candidate implementations per target with a selection rule | Blocked | Format currently allows only one implementation per target per component, so there's no selection to make yet; needs a format decision first |
+| Component composition (one component's rendered output embedded in another's, via `composes`) | Implemented | `specs/component.schema.json`, `crates/omni-core/src/components.rs` (validation), `crates/omni-web-adapter/src/lib.rs::render_component` (recursive rendering); see [ADR 0010](decisions/0010-component-composition-via-slots.md) and `examples/navbar-demo`. `web-static` only; a composed slot's `inputs` are static (not interpolated from the parent's own inputs) |
 | Component outputs/events, modeled | Partial | Schema + types exist (`ComponentInterface::outputs`/`events`); neither shipped adapter reads or emits them |
 
 ## CLI
@@ -102,11 +103,11 @@ resource (a toolchain, a sandboxing design) this milestone didn't produce.
 
 | Item | Status | Notes |
 |---|---|---|
-| Unit tests (config, schema, resolver, graph, cache, paths, diagnostics, api_contract) | Implemented | 44 tests |
+| Unit tests (config, schema, resolver, graph, cache, paths, diagnostics, api_contract, component composition validation) | Implemented | 47 tests |
 | Fixture-driven tests | Implemented | 4 tests against `fixtures/` |
 | Out-of-process mechanism tests | Implemented | 11 tests, `omni-adapter-api::process` (malformed response, timeout, nonzero exit, missing executable, protocol/id mismatch, controlled env, path-separator rejection) |
 | Dev-server process-lifecycle unit tests | Implemented | 7 tests, `omni-adapter-api::devserver` (readiness detection, ready-timeout, early exit, graceful stop, hard-kill fallback on both platforms this milestone's own CI matrix covers, already-exited no-op, free-port allocation) |
-| `web-static` adapter integration tests | Implemented | 4 tests |
+| `web-static` adapter integration tests | Implemented | 5 tests, including a composed-component end-to-end render |
 | `python-backend` adapter white-box tests | Implemented | 8 tests, `crates/omni-cli/tests/python_backend_adapter.rs` (full round trip, missing toolchain, missing required input, unsupported operation, unsafe path, inner nonzero exit, inner timeout, conformance) |
 | CLI integration tests | Implemented | 16 tests, `omni-cli` (10 web/general + 1 backend end-to-end + 4 `package` command, real zip archive read back + 1 build-all partial-failure) |
 | `hello-fullstack` end-to-end HTTP tests | Implemented | 9 tests, `crates/omni-cli/tests/fullstack_http.rs`: success, invalid request data, unknown route, backend startup failure, startup timeout, HTTP read timeout, contract violation, invalid-contract-fails-the-build, contract-edit-busts-the-cache — against a real HTTP server, real requests, no mocking |

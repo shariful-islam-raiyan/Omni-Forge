@@ -153,6 +153,52 @@ pub fn discover_components(
             continue;
         }
 
+        // Every composition slot must name a component already declared as
+        // a dependency (so the resolver's existing dependency-graph +
+        // cycle-detection machinery already covers it), and must not reuse
+        // a plain input's name (both end up as `{{name}}` placeholders in
+        // the same template namespace).
+        let dep_set: std::collections::BTreeSet<&str> =
+            manifest.dependencies.iter().map(String::as_str).collect();
+        let mut compose_invalid = false;
+        for (slot, compose) in &manifest.composes {
+            if manifest.interface.inputs.contains_key(slot) {
+                diags.push(
+                    Diagnostic::error(
+                        "E-COMPONENT-COMPOSE-NAME-CONFLICT",
+                        format!(
+                            "composition slot '{slot}' has the same name as a declared input on component '{}'",
+                            manifest.name
+                        ),
+                    )
+                    .with_file(manifest_path.display().to_string())
+                    .with_component(manifest.name.clone()),
+                );
+                compose_invalid = true;
+            }
+            if !dep_set.contains(compose.component.as_str()) {
+                diags.push(
+                    Diagnostic::error(
+                        "E-COMPONENT-COMPOSE-UNDECLARED-DEPENDENCY",
+                        format!(
+                            "composition slot '{slot}' on component '{}' uses component '{}', which is not listed in 'dependencies'",
+                            manifest.name, compose.component
+                        ),
+                    )
+                    .with_file(manifest_path.display().to_string())
+                    .with_component(manifest.name.clone())
+                    .with_suggestion(format!(
+                        "add '{}' to this component's 'dependencies' list",
+                        compose.component
+                    )),
+                );
+                compose_invalid = true;
+            }
+        }
+        if compose_invalid {
+            continue;
+        }
+
         if let Some(existing) = seen_names.get(&manifest.name) {
             diags.push(
                 Diagnostic::error(
@@ -178,4 +224,111 @@ pub fn discover_components(
 
     manifests.sort_by(|a, b| a.name.cmp(&b.name));
     Ok((manifests, diags))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_component(dir: &Path, name_dir: &str, yaml: &str) {
+        let component_dir = dir.join("lib/components").join(name_dir);
+        fs::create_dir_all(&component_dir).unwrap();
+        fs::write(component_dir.join(COMPONENT_FILE_NAME), yaml).unwrap();
+    }
+
+    #[test]
+    fn compose_slot_targeting_an_undeclared_dependency_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        write_component(
+            &root,
+            "ui.page",
+            r#"
+schema: omniforge.dev/component/v1
+name: ui.page
+version: 1.0.0
+kind: ui
+composes:
+  nav:
+    component: ui.navbar
+interface:
+  inputs: {}
+implementations:
+  web:
+    adapter: web-static
+    source: ./page.html.tmpl
+"#,
+        );
+        let (manifests, diags) = discover_components(&root, "lib/components").unwrap();
+        assert!(manifests.is_empty());
+        assert!(diags
+            .items()
+            .iter()
+            .any(|d| d.code == "E-COMPONENT-COMPOSE-UNDECLARED-DEPENDENCY"));
+    }
+
+    #[test]
+    fn compose_slot_colliding_with_an_input_name_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        write_component(
+            &root,
+            "ui.page",
+            r#"
+schema: omniforge.dev/component/v1
+name: ui.page
+version: 1.0.0
+kind: ui
+dependencies: [ui.navbar]
+composes:
+  nav:
+    component: ui.navbar
+interface:
+  inputs:
+    nav:
+      type: string
+      required: false
+implementations:
+  web:
+    adapter: web-static
+    source: ./page.html.tmpl
+"#,
+        );
+        let (manifests, diags) = discover_components(&root, "lib/components").unwrap();
+        assert!(manifests.is_empty());
+        assert!(diags
+            .items()
+            .iter()
+            .any(|d| d.code == "E-COMPONENT-COMPOSE-NAME-CONFLICT"));
+    }
+
+    #[test]
+    fn compose_slot_with_a_declared_dependency_is_accepted() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        write_component(
+            &root,
+            "ui.page",
+            r#"
+schema: omniforge.dev/component/v1
+name: ui.page
+version: 1.0.0
+kind: ui
+dependencies: [ui.navbar]
+composes:
+  nav:
+    component: ui.navbar
+interface:
+  inputs: {}
+implementations:
+  web:
+    adapter: web-static
+    source: ./page.html.tmpl
+"#,
+        );
+        let (manifests, diags) = discover_components(&root, "lib/components").unwrap();
+        assert!(!diags.has_errors(), "{:?}", diags.items());
+        assert_eq!(manifests.len(), 1);
+        assert_eq!(manifests[0].composes["nav"].component, "ui.navbar");
+    }
 }

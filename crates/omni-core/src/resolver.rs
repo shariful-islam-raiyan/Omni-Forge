@@ -246,6 +246,7 @@ mod tests {
             version: "1.0.0".into(),
             kind: ComponentKind::Ui,
             dependencies: deps.into_iter().map(String::from).collect(),
+            composes: BTreeMap::new(),
             interface: ComponentInterface::default(),
             implementations,
             manifest_path: PathBuf::from("component.yaml"),

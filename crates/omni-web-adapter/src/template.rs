@@ -1,14 +1,32 @@
 //! A deliberately tiny, safe substitution renderer.
 //!
 //! This is NOT a template language and never will be: no logic, no loops,
-//! no includes, no embedded code of any kind. It only recognizes
-//! `{{identifier}}` placeholders, requires every placeholder to be a
-//! declared component input, and HTML-escapes every substituted value. That
-//! is the entire security and capability boundary of the web-static
-//! adapter's rendering step — see docs for why this scope was chosen over
-//! embedding a JS engine.
+//! no conditionals, and no mechanism that takes an arbitrary string and
+//! executes it. It only recognizes `{{identifier}}` placeholders, requires
+//! every placeholder to be either a declared component input or a
+//! composition slot (see `ComponentManifest::composes`), and HTML-escapes
+//! every *input* value. A composition slot's value is never a raw string
+//! from outside the system — it is always the output of this exact same
+//! renderer, called recursively on another component (see
+//! `lib.rs::render_component` and
+//! `docs/decisions/0010-component-composition-via-slots.md`), so nothing
+//! unescaped ever reaches a slot except already-escaped HTML this renderer
+//! itself produced. That, plus the four tests below and the adapter-level
+//! integration tests in `tests/compile.rs`, is the entire security argument
+//! for this adapter's rendering step.
 
 use std::collections::{BTreeMap, BTreeSet};
+
+/// A value substituted for one `{{name}}` placeholder.
+#[derive(Debug, Clone)]
+pub enum SlotValue {
+    /// A plain component input: HTML-escaped before insertion.
+    Escaped(String),
+    /// A composition slot: already-rendered, already-escaped HTML from a
+    /// recursive call to this same renderer. Inserted verbatim — never
+    /// derived from unescaped external input.
+    Raw(String),
+}
 
 pub fn escape_html(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
@@ -25,13 +43,14 @@ pub fn escape_html(input: &str) -> String {
     out
 }
 
-/// Renders `template`, substituting `{{name}}` with the HTML-escaped value
-/// of `values[name]`. Every placeholder in the template must be present in
+/// Renders `template`, substituting `{{name}}` with `values[name]` —
+/// HTML-escaped for [`SlotValue::Escaped`], inserted verbatim for
+/// [`SlotValue::Raw`]. Every placeholder in the template must be present in
 /// `declared`, otherwise rendering fails (this catches typos and prevents a
 /// template from silently referencing undefined data).
 pub fn render(
     template: &str,
-    values: &BTreeMap<String, String>,
+    values: &BTreeMap<String, SlotValue>,
     declared: &BTreeSet<String>,
 ) -> Result<String, Vec<String>> {
     let mut out = String::with_capacity(template.len());
@@ -47,8 +66,11 @@ pub fn render(
                         "template references undeclared input '{{{{{name}}}}}'"
                     ));
                 } else {
-                    let value = values.get(name).cloned().unwrap_or_default();
-                    out.push_str(&escape_html(&value));
+                    match values.get(name) {
+                        Some(SlotValue::Escaped(v)) => out.push_str(&escape_html(v)),
+                        Some(SlotValue::Raw(v)) => out.push_str(v),
+                        None => {}
+                    }
                 }
                 i += 2 + end + 2;
                 continue;
@@ -89,10 +111,10 @@ mod tests {
     fn set(items: &[&str]) -> BTreeSet<String> {
         items.iter().map(|s| s.to_string()).collect()
     }
-    fn map(items: &[(&str, &str)]) -> BTreeMap<String, String> {
+    fn map(items: &[(&str, &str)]) -> BTreeMap<String, SlotValue> {
         items
             .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .map(|(k, v)| (k.to_string(), SlotValue::Escaped(v.to_string())))
             .collect()
     }
 
@@ -117,6 +139,17 @@ mod tests {
     fn rejects_undeclared_placeholder() {
         let err = render("{{evil}}", &BTreeMap::new(), &set(&["title"])).unwrap_err();
         assert!(err[0].contains("evil"));
+    }
+
+    #[test]
+    fn raw_slot_value_is_inserted_without_escaping() {
+        let mut values = BTreeMap::new();
+        values.insert(
+            "nav".to_string(),
+            SlotValue::Raw("<nav>already escaped inside</nav>".to_string()),
+        );
+        let out = render("<body>{{nav}}</body>", &values, &set(&["nav"])).unwrap();
+        assert_eq!(out, "<body><nav>already escaped inside</nav></body>");
     }
 
     #[test]

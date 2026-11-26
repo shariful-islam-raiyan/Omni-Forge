@@ -34,6 +34,12 @@ pub struct ComponentManifest {
     pub kind: ComponentKind,
     #[serde(default)]
     pub dependencies: Vec<String>,
+    /// Named composition slots: each key is a placeholder name usable in
+    /// this component's own template (alongside `interface.inputs`), whose
+    /// value is the already-rendered, already-escaped HTML of another
+    /// component. See `docs/decisions/0010-component-composition-via-slots.md`.
+    #[serde(default)]
+    pub composes: BTreeMap<String, ComposeSlot>,
     #[serde(default)]
     pub interface: ComponentInterface,
     pub implementations: BTreeMap<String, ComponentImplementation>,
@@ -77,4 +83,16 @@ pub enum FieldType {
 pub struct ComponentImplementation {
     pub adapter: String,
     pub source: String,
+}
+
+/// One composition slot: `component` names the child component to render
+/// into this slot (must also appear in this manifest's `dependencies` — see
+/// `components.rs::discover_components`); `inputs` are passed to that child
+/// the same way a webapp manifest's `root.inputs` are passed to a root
+/// component.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComposeSlot {
+    pub component: String,
+    #[serde(default)]
+    pub inputs: BTreeMap<String, serde_json::Value>,
 }

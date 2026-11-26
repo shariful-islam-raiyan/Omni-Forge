@@ -64,7 +64,17 @@ backend dev server) and/or a static file server, both bound to
   (`crates/omni-web-adapter/src/template.rs`) only substitutes declared
   `{{field}}` placeholders and HTML-escapes every value — see
   [decisions/0003-template-only-rendering.md](decisions/0003-template-only-rendering.md).
-  There is no `eval`, no shell-out, no embedded interpreter.
+  There is no `eval`, no shell-out, no embedded interpreter. Component
+  **composition** (`composes` in `component.yaml`,
+  [ADR 0010](decisions/0010-component-composition-via-slots.md)) is the
+  one addition to this since ADR 0003: a component may embed another
+  component's output as a placeholder's value. This does not add code
+  execution or a new unescaped-input path — a composed slot's value is
+  always this exact same renderer's own output on a component the
+  resolver's dependency graph already resolved, never a raw string from
+  outside the system, and a composition "cycle" is enforced to be a
+  dependency cycle (same detector, same `E-RESOLVE-CYCLE`), not a new
+  unbounded-recursion risk.
 - **Dev server path safety.** `crates/omni-cli/src/http.rs` resolves every
   request path through `safe_join` against the serve root; a path that
   would escape gets `400`, not the file.

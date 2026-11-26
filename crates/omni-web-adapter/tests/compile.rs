@@ -178,6 +178,150 @@ fn missing_public_asset_fails_the_build() {
         .any(|d| d.code == "E-WEB-ASSET-MISSING"));
 }
 
+fn scaffold_composition(root: &std::path::Path) {
+    fs::create_dir_all(root.join("lib/components/ui.navbar")).unwrap();
+    fs::create_dir_all(root.join("lib/components/ui.page")).unwrap();
+    fs::create_dir_all(root.join("web")).unwrap();
+    fs::create_dir_all(root.join("public")).unwrap();
+
+    fs::write(
+        root.join("lib/components/ui.navbar/component.yaml"),
+        r#"
+schema: omniforge.dev/component/v1
+name: ui.navbar
+version: 1.0.0
+kind: ui
+interface:
+  inputs:
+    brand:
+      type: string
+      required: true
+implementations:
+  web:
+    adapter: web-static
+    source: ./navbar.html.tmpl
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("lib/components/ui.navbar/navbar.html.tmpl"),
+        "<nav>{{brand}}</nav>",
+    )
+    .unwrap();
+
+    fs::write(
+        root.join("lib/components/ui.page/component.yaml"),
+        r#"
+schema: omniforge.dev/component/v1
+name: ui.page
+version: 1.0.0
+kind: ui
+dependencies: [ui.navbar]
+composes:
+  nav:
+    component: ui.navbar
+    inputs:
+      brand: "<script>evil</script>"
+interface:
+  inputs:
+    heading:
+      type: string
+      required: true
+implementations:
+  web:
+    adapter: web-static
+    source: ./page.html.tmpl
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("lib/components/ui.page/page.html.tmpl"),
+        "{{nav}}<h1>{{heading}}</h1>",
+    )
+    .unwrap();
+
+    fs::write(
+        root.join("web/app.yaml"),
+        r#"
+schema: omniforge.dev/webapp/v1
+title: "Composition demo"
+root:
+  component: ui.page
+  inputs:
+    heading: "Welcome"
+"#,
+    )
+    .unwrap();
+}
+
+fn make_composition_ctx(root: &std::path::Path) -> BuildContext {
+    let output = OutputDir::resolve(root, "dist").unwrap();
+    let adapter = AdapterManifest {
+        schema: "omniforge.dev/adapter/v1".into(),
+        id: "web-static".into(),
+        version: "0.1.0".into(),
+        protocol: "in-process/v1".into(),
+        capabilities: AdapterCapabilities {
+            languages: vec!["template".into()],
+            component_kinds: vec!["ui".into()],
+            targets: vec!["web".into()],
+            operations: vec!["validate".into(), "compile".into(), "package".into()],
+            requires: vec![],
+        },
+        dev: None,
+    };
+    let page = ResolvedComponent {
+        name: "ui.page".into(),
+        version: "1.0.0".into(),
+        kind: omni_core::spec::component::ComponentKind::Ui,
+        implementation: ComponentImplementation {
+            adapter: "web-static".into(),
+            source: "./page.html.tmpl".into(),
+        },
+        manifest_dir: root.join("lib/components/ui.page"),
+        adapter: adapter.clone(),
+    };
+    let navbar = ResolvedComponent {
+        name: "ui.navbar".into(),
+        version: "1.0.0".into(),
+        kind: omni_core::spec::component::ComponentKind::Ui,
+        implementation: ComponentImplementation {
+            adapter: "web-static".into(),
+            source: "./navbar.html.tmpl".into(),
+        },
+        manifest_dir: root.join("lib/components/ui.navbar"),
+        adapter,
+    };
+    BuildContext {
+        project_root: root.to_path_buf(),
+        target: "web".into(),
+        entry_path: Some(root.join("web/app.yaml")),
+        output,
+        components: vec![page, navbar],
+    }
+}
+
+#[test]
+fn composed_child_component_is_rendered_and_escaped_in_place() {
+    let dir = tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    scaffold_composition(&root);
+    let ctx = make_composition_ctx(&root);
+
+    let adapter = WebStaticAdapter::new();
+    let result = adapter.compile(&ctx);
+    assert!(
+        !result.diagnostics.has_errors(),
+        "{:?}",
+        result.diagnostics.items()
+    );
+
+    let html = fs::read_to_string(root.join("dist/index.html")).unwrap();
+    assert!(html.contains("<nav>&lt;script&gt;evil&lt;/script&gt;</nav>"));
+    assert!(html.contains("<h1>Welcome</h1>"));
+    assert!(!html.contains("<script>evil"));
+}
+
 #[test]
 fn adapter_manifest_is_conformant() {
     let adapter = WebStaticAdapter::new();

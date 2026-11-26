@@ -135,6 +135,21 @@ work within its grace period) and the static server, and prints what
 happened to each before exiting. See [dev-workflow.md](dev-workflow.md)
 for port configuration and what happens when a target fails to start.
 
+## 7.5. Try the composition example (a component embedding another component)
+
+```sh
+cd examples/navbar-demo
+cargo run --manifest-path ../../Cargo.toml -p omni-cli -- build web
+cat dist/web/index.html
+```
+
+`lib/components/ui.page/component.yaml` declares `ui.navbar` as a
+dependency and `composes` it into a `nav` slot; `page.html.tmpl` uses
+`{{nav}}` like any other placeholder, but its value is `ui.navbar`'s own
+real, rendered, escaped HTML — not copy-pasted markup. See
+[`examples/navbar-demo/README.md`](../examples/navbar-demo/README.md) and
+[decisions/0010-component-composition-via-slots.md](decisions/0010-component-composition-via-slots.md).
+
 ## 8. When something fails
 
 Every failure prints a stable code (`E-...`) plus, usually, a suggestion.
