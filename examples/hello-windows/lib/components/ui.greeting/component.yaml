@@ -1,0 +1,17 @@
+schema: omniforge.dev/component/v1
+
+name: ui.greeting
+version: 1.0.0
+kind: ui
+
+interface:
+  inputs:
+    message:
+      type: string
+      required: false
+      default: "Hello from the OmniForge windows-desktop adapter."
+
+implementations:
+  windows:
+    adapter: windows-desktop
+    source: ./main.rs.tmpl

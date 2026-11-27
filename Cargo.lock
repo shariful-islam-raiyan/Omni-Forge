@@ -922,6 +922,7 @@ dependencies = [
  "omni-android-adapter",
  "omni-core",
  "omni-web-adapter",
+ "omni-windows-adapter",
  "predicates",
  "serde",
  "serde_json",
@@ -948,6 +949,18 @@ dependencies = [
 
 [[package]]
 name = "omni-web-adapter"
+version = "0.1.0"
+dependencies = [
+ "omni-adapter-api",
+ "omni-core",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+]
+
+[[package]]
+name = "omni-windows-adapter"
 version = "0.1.0"
 dependencies = [
  "omni-adapter-api",

@@ -1,0 +1,21 @@
+schema: omniforge.dev/adapter/v1
+id: windows-desktop
+version: 0.1.0
+protocol: in-process/v1
+
+capabilities:
+  languages:
+    - rust
+  component_kinds:
+    - ui
+  targets:
+    - windows
+  operations:
+    - validate
+    - compile
+  # 'rustc' is the same compiler this very CLI is built with -- always
+  # present on any machine that can build OmniForge at all, discovered
+  # the same way `omni_adapter_api::process::resolve_executable` discovers
+  # every other adapter's toolchain (tried directly on PATH).
+  requires:
+    - rustc

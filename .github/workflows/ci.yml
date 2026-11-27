@@ -76,6 +76,8 @@ jobs:
           cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
           cd ../hello-go
           cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+          cd ../hello-windows
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
           cd ../hello-fullstack
           cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
           cd ../navbar-demo
@@ -141,6 +143,17 @@ jobs:
           test -f dist/backend/output.txt
           test -f dist/build-report.json
           grep -q "Hello from hello-go" dist/backend/output.txt
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
+
+      - name: Build the windows-desktop example and verify artifacts (real rustc build + execution)
+        shell: bash
+        run: |
+          cd examples/hello-windows
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build windows
+          test -f dist/windows/source.rs
+          test -f dist/windows/output.txt
+          test -f dist/build-report.json
+          grep -q "Hello from hello-windows" dist/windows/output.txt
           cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
 
       - name: Build the full-stack example (both targets) and verify artifacts

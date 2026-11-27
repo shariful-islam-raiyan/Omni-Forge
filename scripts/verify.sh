@@ -77,6 +77,18 @@ echo "==> building examples/hello-go (requires a Go toolchain)"
   cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
 )
 
+echo "==> building examples/hello-windows (windows-desktop adapter, compiles + runs a real native .exe)"
+(
+  cd examples/hello-windows
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build windows
+  test -f dist/windows/source.rs
+  test -f dist/windows/output.txt
+  test -f dist/build-report.json
+  grep -q "Hello from hello-windows" dist/windows/output.txt
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
+)
+
 echo "==> building examples/hello-fullstack (both targets, requires a Python 3 toolchain)"
 (
   cd examples/hello-fullstack

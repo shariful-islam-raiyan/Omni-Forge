@@ -2,6 +2,7 @@ use crate::adapters::{go_backend, node_backend, python_backend, typescript_backe
 use omni_adapter_api::Adapter;
 use omni_android_adapter::AndroidGradleAdapter;
 use omni_web_adapter::WebStaticAdapter;
+use omni_windows_adapter::WindowsDesktopAdapter;
 
 /// The adapters statically linked into this build of the CLI. OmniForge does
 /// not dynamically load or execute third-party adapter code today (see
@@ -25,5 +26,6 @@ pub fn built_in_adapters() -> Vec<Box<dyn Adapter + Send + Sync>> {
         Box::new(typescript_backend::build()),
         Box::new(go_backend::build()),
         Box::new(AndroidGradleAdapter::new()),
+        Box::new(WindowsDesktopAdapter::new()),
     ]
 }

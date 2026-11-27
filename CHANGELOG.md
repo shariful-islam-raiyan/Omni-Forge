@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased — A real `windows-desktop` adapter: the first desktop target
+
+- **New adapter and new crate: `windows-desktop` (`omni-windows-adapter`).**
+  The first OmniForge target that isn't `web`, `backend`, or `android`.
+  Same in-process-Rust-shells-out-to-a-real-tool style `android-gradle`
+  established: renders a `ui`-kind component's template (the same fixed
+  `{{field}}`-substitution style every template-based adapter uses, just
+  targeting a Rust string literal — `rust_template.rs`, a sibling of
+  `omni-android-adapter`'s `kotlin.rs`) into a real `.rs` file, compiles
+  it with a real `rustc` into a real native Windows executable (a
+  genuine PE32+ binary — confirmed directly with `file`, not assumed),
+  then genuinely **executes** it, keeping captured stdout as a real
+  artifact. No GUI window — a console application only; a real
+  Win32 GUI surface is architecturally compatible but not attempted in
+  this milestone (blocks on user interaction, which a real automated
+  test cannot exercise without faking it). See
+  [ADR 0016](docs/decisions/0016-windows-desktop-adapter.md),
+  `examples/hello-windows`, and
+  `crates/omni-windows-adapter/tests/compile.rs` (4 tests) +
+  `rust_template.rs`'s own unit tests (5 tests).
+- **New schema**: `specs/windows-app.schema.json`
+  (`omniforge.dev/windows-app/v1`), registered in
+  `omni_core::schema::SchemaKind`.
+- **A real gap found and fixed**: the first draft of `validate()` only
+  rendered the template and never invoked `rustc`, so `omni check`
+  reported success for Rust source `rustc` itself would reject. Fixed by
+  running a real `rustc --emit=metadata` type-check in `validate()` —
+  writes nothing lasting, catches every real compile error category —
+  caught by a dedicated test that failed honestly on the first run.
+
 ## Unreleased — A real Go adapter, compiling to a native executable
 
 - **New adapter: `go-backend`.** Architecturally distinct from every

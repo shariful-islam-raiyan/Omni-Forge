@@ -16,6 +16,7 @@ const WEBAPP_SCHEMA_SRC: &str = include_str!("../../../specs/webapp.schema.json"
 const BUILD_REPORT_SCHEMA_SRC: &str = include_str!("../../../specs/build-report.schema.json");
 const API_CONTRACT_SCHEMA_SRC: &str = include_str!("../../../specs/api-contract.schema.json");
 const ANDROID_APP_SCHEMA_SRC: &str = include_str!("../../../specs/android-app.schema.json");
+const WINDOWS_APP_SCHEMA_SRC: &str = include_str!("../../../specs/windows-app.schema.json");
 
 pub enum SchemaKind {
     Project,
@@ -25,6 +26,7 @@ pub enum SchemaKind {
     BuildReport,
     ApiContract,
     AndroidApp,
+    WindowsApp,
 }
 
 fn compiled(src: &'static str) -> &'static JSONSchema {
@@ -45,6 +47,7 @@ fn compiled(src: &'static str) -> &'static JSONSchema {
     static BUILD_REPORT: StdOnceLock<JSONSchema> = StdOnceLock::new();
     static API_CONTRACT: StdOnceLock<JSONSchema> = StdOnceLock::new();
     static ANDROID_APP: StdOnceLock<JSONSchema> = StdOnceLock::new();
+    static WINDOWS_APP: StdOnceLock<JSONSchema> = StdOnceLock::new();
 
     if std::ptr::eq(src, PROJECT_SCHEMA_SRC) {
         compile_one(&PROJECT, src)
@@ -58,6 +61,8 @@ fn compiled(src: &'static str) -> &'static JSONSchema {
         compile_one(&API_CONTRACT, src)
     } else if std::ptr::eq(src, ANDROID_APP_SCHEMA_SRC) {
         compile_one(&ANDROID_APP, src)
+    } else if std::ptr::eq(src, WINDOWS_APP_SCHEMA_SRC) {
+        compile_one(&WINDOWS_APP, src)
     } else {
         compile_one(&BUILD_REPORT, src)
     }
@@ -73,6 +78,7 @@ impl SchemaKind {
             SchemaKind::BuildReport => BUILD_REPORT_SCHEMA_SRC,
             SchemaKind::ApiContract => API_CONTRACT_SCHEMA_SRC,
             SchemaKind::AndroidApp => ANDROID_APP_SCHEMA_SRC,
+            SchemaKind::WindowsApp => WINDOWS_APP_SCHEMA_SRC,
         }
     }
 
@@ -85,6 +91,7 @@ impl SchemaKind {
             SchemaKind::BuildReport => "E-SCHEMA-BUILD-REPORT",
             SchemaKind::ApiContract => "E-SCHEMA-API-CONTRACT",
             SchemaKind::AndroidApp => "E-SCHEMA-ANDROID-APP",
+            SchemaKind::WindowsApp => "E-SCHEMA-WINDOWS-APP",
         }
     }
 }

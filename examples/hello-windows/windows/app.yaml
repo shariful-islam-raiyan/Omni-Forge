@@ -1,0 +1,8 @@
+schema: omniforge.dev/windows-app/v1
+
+app_name: hello-windows
+
+root:
+  component: ui.greeting
+  inputs:
+    message: "Hello from hello-windows, built by OmniForge's windows-desktop adapter!"

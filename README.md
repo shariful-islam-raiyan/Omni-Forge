@@ -62,21 +62,32 @@ only understands OmniForge's own versioned specification documents
 piece of real work to an adapter through a documented interface
 (`omni-adapter-api`).
 
-Today, two real adapters exist:
+Today, seven real adapters exist, covering three adapter *styles*:
 
-- **`web-static`** — runs in-process inside the `omni` binary. Renders a
-  small, deliberately non-Turing-complete `{{field}}` template into a
-  real static website (HTML/CSS/JS), with every input HTML-escaped.
-- **`python-backend`** — runs out-of-process. Spawns a real Python 3
-  interpreter, speaking a versioned JSON protocol over stdin/stdout, to
-  validate and execute a real backend script and package it into a
-  runnable artifact.
+- **In-process** — runs directly inside the `omni` binary, no subprocess.
+  **`web-static`** renders a small, deliberately non-Turing-complete
+  `{{field}}` template into a real static website (HTML/CSS/JS), every
+  input HTML-escaped.
+- **Out-of-process** — spawns a real interpreter, speaking a versioned
+  JSON protocol over stdin/stdout, to validate and execute a real backend
+  script and package it into a runnable artifact: **`python-backend`**
+  (real Python 3), **`node-backend`** (real Node.js), and
+  **`typescript-backend`** (real `tsc` type-checking + compile, then
+  real Node execution — not just transpiling).
+- **In-process, shelling out to a real external build tool** — the
+  adapter's own decision-making is in-process Rust, but it genuinely
+  invokes a real external compiler/build tool: **`android-gradle`**
+  (real Gradle → a real, verified debug APK), **`go-backend`** (real
+  `go build` → a real native executable, run directly, no interpreter),
+  and **`windows-desktop`** (real `rustc` → a real native Windows
+  executable, run directly) — the first non-web/backend/Android target.
 
 The `omni` CLI ties this together: it validates your project, resolves
 which component implements which target, builds (with a real
-content-addressed local cache), and — new in this release — runs a
-**unified development server** that builds and serves every enabled
-target at once, managing a real backend process with graceful shutdown.
+content-addressed local cache, optionally in parallel across independent
+targets), and runs a **unified development server** that builds and
+serves every enabled target at once, managing a real backend process
+with graceful shutdown.
 
 ## Vision and design philosophy
 
@@ -201,7 +212,7 @@ resource this project doesn't have yet.
 | Parallel build scheduling across targets | Implemented | `omni.yaml`'s `build.parallel: true` builds independent targets concurrently (one OS thread each); default stays `false` (sequential, unchanged). Does not parallelize within one target's own component graph yet |
 | Third-party adapter trust/enablement | Planned | Only adapters this repository ships and reviews can run today |
 | Adapter sandboxing beyond argv/env/cwd/timeout | Blocked | No third-party adapter exists yet to sandbox; see security model |
-| Desktop targets (Windows/Linux/macOS) | Planned | Vocabulary exists (`omni.yaml` accepts the target names); no adapter |
+| Desktop targets (Windows/Linux/macOS) | Windows: Implemented (Windows verified). Linux/macOS: Planned | `windows-desktop` adapter (Rust, compiles + runs a real native `.exe`) — see [ADR 0016](docs/decisions/0016-windows-desktop-adapter.md) and `examples/hello-windows`. Console only, no GUI window yet. Linux/macOS have no adapter — this machine cannot build or verify either OS |
 | Android target | Implemented (Windows verified; macOS/Linux unverified) | `android-gradle` adapter — real Gradle build, real APK, see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) |
 | iOS target | Planned | Vocabulary only, no adapter — genuinely requires a macOS/Xcode environment this project's development machine (Windows) does not have |
 | Additional language adapters (Go/Rust/C/C++/Java/Kotlin/Dart/Swift/COBOL) | Planned | `ProcessAdapter` is language-neutral and reusable — proven by `node-backend` and `typescript-backend` (above); none of these others exist yet |
@@ -221,7 +232,8 @@ README's table as a summary, that one as the source of truth.
 | `backend` | `typescript-backend` | **Implemented** (Windows verified; macOS/Linux unverified) | Real `tsc` type-checking + compile + Node execution — requires Node.js + npm (TypeScript itself resolved on demand); see [ADR 0013](docs/decisions/0013-typescript-backend-adapter.md) |
 | `backend` | `go-backend` | **Implemented** (Windows verified; macOS/Linux unverified) | A real, standalone native executable, compiled by a real `go build` and run directly — requires a Go toolchain on `PATH`; see [ADR 0015](docs/decisions/0015-go-backend-adapter.md) |
 | `android` | `android-gradle` | **Implemented** (Windows verified; macOS/Linux unverified) | A real, debug-signed APK — requires a real local Android SDK, JDK, and a discoverable Gradle distribution (`omni doctor` reports exactly what was found); see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) |
-| `ios`, `windows`, `linux`, `macos` | — | **Not implemented** | These are valid target *names* (so `omni.yaml` won't reject them for existing), but enabling one with no adapter correctly fails with `E-BUILD-ADAPTER-UNAVAILABLE` rather than pretending to succeed |
+| `windows` | `windows-desktop` | **Implemented** (Windows verified) | A real native Windows executable (PE32+), compiled by a real `rustc` and genuinely run — console only, no GUI window; requires a Rust toolchain on `PATH` (always true if you can build `omni` itself); see [ADR 0016](docs/decisions/0016-windows-desktop-adapter.md) |
+| `ios`, `linux`, `macos` | — | **Not implemented** | These are valid target *names* (so `omni.yaml` won't reject them for existing), but enabling one with no adapter correctly fails with `E-BUILD-ADAPTER-UNAVAILABLE` rather than pretending to succeed |
 
 OmniForge's vocabulary is intentionally broader than its current adapter
 set — see [Explicitly unsupported / planned](#explicitly-unsupported--planned).
@@ -230,12 +242,16 @@ set — see [Explicitly unsupported / planned](#explicitly-unsupported--planned)
 
 To be unambiguous about what **not** to expect from the current release:
 
-- **No iOS, Windows desktop, Linux desktop, or macOS desktop adapter
-  exists.** Enabling one of these targets produces an honest
-  `unsupported` build result, never a fake success. iOS genuinely
-  requires a macOS/Xcode environment — not available on this project's
-  (Windows) development machine — so it was not attempted; see
-  [docs/roadmap.md](docs/roadmap.md).
+- **Windows desktop support is real but narrow; iOS, Linux desktop, and
+  macOS desktop have no adapter at all.** `windows-desktop` builds a
+  real, verified native executable (console only, no GUI window) — see
+  [ADR 0016](docs/decisions/0016-windows-desktop-adapter.md) and
+  `examples/hello-windows`. Enabling `ios`/`linux`/`macos` still produces
+  an honest `unsupported` build result, never a fake success: iOS
+  genuinely requires a macOS/Xcode environment, and Linux/macOS desktop
+  genuinely require that OS to build and verify — none available on
+  this project's (Windows) development machine — so none of the three
+  was attempted; see [docs/roadmap.md](docs/roadmap.md).
 - **Android support is real but narrow.** `android-gradle` builds a
   real, verified debug APK with exactly one `Activity`/one `TextView`
   from a component's declared message — no emulator/device install, no
@@ -311,6 +327,12 @@ adapters/node-backend/     The node-backend adapter's manifest AND its
                             actual implementation — a real, dependency-free
                             Node.js script, embedded into the omni binary
                             at compile time; see ADR 0012.
+adapters/typescript-backend/ Same shape, real tsc type-checking + compile
+                            before Node execution; see ADR 0013.
+adapters/go-backend/       Same shape, real go build to a native
+                            executable, run directly (no interpreter);
+                            see ADR 0015.
+adapters/windows-desktop/  The windows-desktop adapter's manifest.
 templates/basic/           What `omni create` scaffolds — also embedded
                             into the binary at compile time.
 examples/hello-web/        A complete, buildable web example project.
@@ -319,6 +341,12 @@ examples/hello-backend/    A complete, buildable backend example project
 examples/hello-node/       A complete, buildable backend example project
                             (node-backend) — same shape as hello-backend,
                             different interpreter.
+examples/hello-typescript/ A complete, buildable backend example project
+                            (typescript-backend) — real tsc type-checking.
+examples/hello-go/         A complete, buildable backend example project
+                            (go-backend) — a real compiled native binary.
+examples/hello-windows/    A complete, buildable windows-desktop example
+                            — a real compiled, executed native .exe.
 examples/hello-fullstack/  Web + backend together, one API contract, a
                             real browser-side API client — see its README.
 examples/navbar-demo/      Component composition: a ui.page component
@@ -333,6 +361,11 @@ crates/omni-android-adapter/ The android-gradle adapter: toolchain
                             generation, Kotlin-string templating, and a
                             real Gradle invocation + APK verification.
 adapters/android-gradle/   The android-gradle adapter's manifest.
+crates/omni-windows-adapter/ The windows-desktop adapter: Rust-string
+                            templating (rust_template.rs, a sibling of
+                            kotlin.rs), a real rustc invocation, and real
+                            execution of the compiled native executable;
+                            see ADR 0016.
 integration-tests/browser/ The real-browser (Playwright) E2E suite —
                             additive, Node-based, outside `cargo test`.
 fixtures/                  Static valid/invalid omni.yaml fixtures used
@@ -676,7 +709,7 @@ development and production behavior.
 
 ```sh
 cargo build --workspace
-cargo test --workspace      # 179 tests: unit + integration + adapter conformance + dev-process lifecycle + composition + node-backend + typescript-backend + go-backend + parallel-build + seo + adapter-validate + android-gradle (real Gradle build skipped unless OMNIFORGE_RUN_ANDROID_E2E=1 — see ADR 0011)
+cargo test --workspace      # 188 tests: unit + integration + adapter conformance + dev-process lifecycle + composition + node-backend + typescript-backend + go-backend + windows-desktop + parallel-build + seo + adapter-validate + android-gradle (real Gradle build skipped unless OMNIFORGE_RUN_ANDROID_E2E=1 — see ADR 0011)
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 bash scripts/verify.sh      # all of the above, plus end-to-end builds of all three examples

@@ -17,6 +17,7 @@ omni-core = { path = "../omni-core" }
 omni-adapter-api = { path = "../omni-adapter-api" }
 omni-web-adapter = { path = "../omni-web-adapter" }
 omni-android-adapter = { path = "../omni-android-adapter" }
+omni-windows-adapter = { path = "../omni-windows-adapter" }
 clap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
