@@ -54,10 +54,10 @@ Modeling all five now (rather than only the ones with adapters) keeps the
 schema stable as adapters for the other kinds are added, without implying
 any of them currently do something they don't — see `docs/roadmap.md`.
 
-### `service` components and the `python-backend` adapter
+### `service` components and the `backend` target's two adapters
 
-A `service`-kind component's `implementations.backend.source` is a Python
-script invoked as `<python> <script.py> <run-config.json>`, where
+A `service`-kind component's `implementations.backend.source` is a script
+invoked as `<interpreter> <script> <run-config.json>`, where
 `run-config.json` is this component's merged, validated inputs as a flat
 JSON object (declared defaults, overridden by the target's entry file).
 The script is expected to run to completion (it is not treated as a
@@ -65,6 +65,19 @@ long-running server) and exit; its captured stdout and a copy of itself
 become build artifacts under `dist/backend/` — see
 [adapter-protocol.md](adapter-protocol.md) for exactly what the adapter
 sends it and [caching.md](caching.md) for how its output is cached.
+
+Two real adapters implement this today, both targeting `backend`; a
+component picks one via `implementations.backend.adapter`:
+
+- **`python-backend`** (`<python> script.py run-config.json`) — see the
+  example below.
+- **`node-backend`** (`<node> script.js run-config.json`) — a structural
+  mirror of `python-backend` reusing the exact same `ProcessAdapter`
+  mechanism with a different interpreter and script; see
+  [ADR 0012](decisions/0012-node-backend-adapter.md) and
+  `examples/hello-node`.
+
+Example (the full version lives in `examples/hello-backend`):
 
 Example (the full version lives in `examples/hello-backend`):
 

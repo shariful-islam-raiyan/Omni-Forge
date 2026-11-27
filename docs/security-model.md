@@ -8,7 +8,8 @@ warns against, so: nothing below is aspirational.
 
 OmniForge, as shipped, runs as the `omni` CLI process plus, per build, at
 most one short-lived child process per out-of-process adapter it invokes
-(today: `python-backend`, spawned once per `validate`/`compile` call,
+(today: `python-backend` and `node-backend`, each spawned once per
+`validate`/`compile` call,
 and — a different style, see below — `android-gradle`'s real Gradle
 invocation during `compile()`) — operating on a project directory the
 invoking user already controls. `omni build`/`omni check` never leave a
@@ -122,9 +123,9 @@ against today are:
   builds against the locked versions.
 - **No implicit adapter execution.** Only adapters
   `crates/omni-cli/src/registry.rs` explicitly constructs ever run —
-  today `web-static` (in-process) and `python-backend` (out-of-process,
-  but still a script embedded in this binary at compile time, not
-  discovered on disk or downloaded). Discovering an `adapter.yaml` on
+  today `web-static` (in-process) and `python-backend`/`node-backend`
+  (out-of-process, but still scripts embedded in this binary at compile
+  time, not discovered on disk or downloaded). Discovering an `adapter.yaml` on
   disk never, by itself, causes anything to be executed — see
   [ADR 0002](decisions/0002-in-process-adapters.md) and
   [ADR 0005](decisions/0005-out-of-process-python-backend.md).

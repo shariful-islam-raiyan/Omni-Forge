@@ -36,6 +36,7 @@ protocol.
 - [Quick start](#quick-start)
 - [CLI command reference](#cli-command-reference)
 - [Example walkthrough: a static site](#example-walkthrough-a-static-site)
+- [Node.js backend walkthrough](#nodejs-backend-walkthrough)
 - [Full-stack walkthrough: web + Python backend](#full-stack-walkthrough-web--python-backend)
 - [Adapter architecture and extension guide](#adapter-architecture-and-extension-guide)
 - [Components and the API contract format](#components-and-the-api-contract-format)
@@ -186,6 +187,7 @@ resource this project doesn't have yet.
 | Adapter interface + out-of-process execution engine | Implemented | `crates/omni-adapter-api` |
 | `web-static` adapter | Implemented | In-process, escaped-template rendering only |
 | `python-backend` adapter | Implemented | Real Python subprocess, stdlib-only |
+| `node-backend` adapter | Implemented (Windows verified; macOS/Linux unverified) | Real Node.js subprocess, zero npm dependencies; same `backend` target as `python-backend` — see [ADR 0012](docs/decisions/0012-node-backend-adapter.md) and `examples/hello-node` |
 | `android-gradle` adapter | Implemented (Windows verified; macOS/Linux unverified) | Real Gradle invocation produces a real, verified debug APK; see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) and `examples/hello-android` |
 | Unified `omni dev` (multi-target, real process lifecycle) | Implemented | Graceful-then-hard-kill shutdown, verified against the real compiled binary with a genuine OS signal |
 | API contract format + validation | Implemented | A **custom** format (not OpenAPI — see below), with build-time validation and reusable request/response validators |
@@ -199,7 +201,7 @@ resource this project doesn't have yet.
 | Desktop targets (Windows/Linux/macOS) | Planned | Vocabulary exists (`omni.yaml` accepts the target names); no adapter |
 | Android target | Implemented (Windows verified; macOS/Linux unverified) | `android-gradle` adapter — real Gradle build, real APK, see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) |
 | iOS target | Planned | Vocabulary only, no adapter — genuinely requires a macOS/Xcode environment this project's development machine (Windows) does not have |
-| Additional language adapters (Node/Go/Rust/etc.) | Planned | `ProcessAdapter` is language-neutral and reusable; no second out-of-process adapter exists yet |
+| Additional language adapters (Go/Rust/C/C++/Java/Kotlin/Dart/Swift/COBOL) | Planned | `ProcessAdapter` is language-neutral and reusable — proven by `node-backend` (above), the second out-of-process adapter; none of these others exist yet |
 | Real OpenAPI 3.1 document support | Planned | The current contract format is deliberately smaller and custom instead — see [ADR 0008](docs/decisions/0008-api-contract-is-a-custom-format.md) |
 
 The full, continuously-updated, item-by-item table (every row backed by a
@@ -212,6 +214,7 @@ README's table as a summary, that one as the source of truth.
 |---|---|---|---|
 | `web` | `web-static` | **Implemented** | A real static site: HTML rendered from escaped templates, copied CSS/JS/assets, a build manifest |
 | `backend` | `python-backend` | **Implemented** | A real, packaged, runnable Python application (`app/`, `run.sh`/`run.bat`, captured output) — requires a Python 3 interpreter on `PATH` |
+| `backend` | `node-backend` | **Implemented** (Windows verified; macOS/Linux unverified) | A real, packaged, runnable Node.js application, same artifact layout as `python-backend` — requires a Node.js interpreter on `PATH`; see [ADR 0012](docs/decisions/0012-node-backend-adapter.md) |
 | `android` | `android-gradle` | **Implemented** (Windows verified; macOS/Linux unverified) | A real, debug-signed APK — requires a real local Android SDK, JDK, and a discoverable Gradle distribution (`omni doctor` reports exactly what was found); see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) |
 | `ios`, `windows`, `linux`, `macos` | — | **Not implemented** | These are valid target *names* (so `omni.yaml` won't reject them for existing), but enabling one with no adapter correctly fails with `E-BUILD-ADAPTER-UNAVAILABLE` rather than pretending to succeed |
 
@@ -233,12 +236,15 @@ To be unambiguous about what **not** to expect from the current release:
   from a component's declared message — no emulator/device install, no
   release signing, no `.aab` output, and not a UI framework. See
   [ADR 0011](docs/decisions/0011-android-gradle-adapter.md).
-- **No Go, Rust-as-a-backend, Dart, C, C++, Java, Swift, or COBOL
-  adapter exists.** `ProcessAdapter` (the out-of-process execution
+- **No Go, Rust-as-a-backend, TypeScript, Dart, C, C++, Java, Swift, or
+  COBOL adapter exists.** `ProcessAdapter` (the out-of-process execution
   mechanism) is language-neutral and designed to be reused for any of
-  these, but none has actually been built and tested yet. (Kotlin is
-  used by the real `android-gradle` adapter above, but only to generate
-  one fixed Activity template — not as a general-purpose adapter
+  these — proven concretely by `node-backend` (a second, independent
+  out-of-process adapter requiring zero changes to `omni-adapter-api`;
+  see [ADR 0012](docs/decisions/0012-node-backend-adapter.md)) — but none
+  of these *other* languages has actually been built and tested yet.
+  (Kotlin is used by the real `android-gradle` adapter above, but only to
+  generate one fixed Activity template — not as a general-purpose adapter
   language.)
 - **The web adapter is not a React/Vue/Angular/Flutter-style component
   framework.** It renders a deliberately tiny, non-Turing-complete
@@ -284,16 +290,25 @@ crates/omni-cli/           The `omni` binary (and a lib target, for
                             the build orchestrator, the unified dev-
                             process runtime (devrun.rs), the dev-mode
                             static file server, and the python-backend
-                            adapter's Rust-side wiring.
+                            adapter's Rust-side wiring, plus the
+                            node-backend adapter's equivalent wiring.
 adapters/web-static/       The web-static adapter's manifest.
 adapters/python-backend/   The python-backend adapter's manifest AND its
                             actual implementation — a real, stdlib-only
                             Python script, embedded into the omni binary
                             at compile time.
+adapters/node-backend/     The node-backend adapter's manifest AND its
+                            actual implementation — a real, dependency-free
+                            Node.js script, embedded into the omni binary
+                            at compile time; see ADR 0012.
 templates/basic/           What `omni create` scaffolds — also embedded
                             into the binary at compile time.
 examples/hello-web/        A complete, buildable web example project.
-examples/hello-backend/    A complete, buildable backend example project.
+examples/hello-backend/    A complete, buildable backend example project
+                            (python-backend).
+examples/hello-node/       A complete, buildable backend example project
+                            (node-backend) — same shape as hello-backend,
+                            different interpreter.
 examples/hello-fullstack/  Web + backend together, one API contract, a
                             real browser-side API client — see its README.
 examples/navbar-demo/      Component composition: a ui.page component
@@ -386,11 +401,14 @@ exists, not before.
 
 - **Rust, stable** (see [`rust-toolchain.toml`](rust-toolchain.toml)) and
   Cargo — always required, for every target.
-- **For the `backend` target only**: a Python 3 interpreter reachable as
-  `python3`, `python`, or (on Windows) the `py` launcher. The `web`
-  target needs nothing beyond Rust — `web-static` renders in-process.
-  Run `omni doctor` after installing to check what's actually available
-  on your machine.
+- **For the `backend` target, one of**: a Python 3 interpreter reachable
+  as `python3`, `python`, or (on Windows) the `py` launcher (for
+  components using `python-backend`), or a Node.js interpreter reachable
+  as `node` (or, on Debian/Ubuntu, `nodejs`) (for components using
+  `node-backend`) — a project only needs the one its components actually
+  declare. The `web` target needs nothing beyond Rust — `web-static`
+  renders in-process. Run `omni doctor` after installing to check what's
+  actually available on your machine.
 - **For contributing, or the optional real-browser test suite only**:
   Node.js 18+ — see [integration-tests/browser/README.md](integration-tests/browser/README.md).
   Not needed to install or use the CLI itself.
@@ -410,23 +428,30 @@ omni build web
 omni dev             # serves every enabled target; prints each one's URL; Ctrl-C to stop
 ```
 
-Four complete, ready-made examples ship in this repository — see
+Several complete, ready-made examples ship in this repository — see
 [docs/getting-started.md](docs/getting-started.md) for a full guided
-walkthrough of all of them:
+walkthrough of the first four:
 
 - [`examples/hello-web`](examples/hello-web) — the in-process
   `web-static` adapter.
 - [`examples/hello-backend`](examples/hello-backend) — the out-of-process
   `python-backend` adapter; `omni build backend` there really spawns
   Python and runs a real script.
-- [`examples/hello-fullstack`](examples/hello-fullstack) — both at once,
-  talking to each other over a declared, validated contract; see
-  [Full-stack walkthrough](#full-stack-walkthrough-web--python-backend)
+- [`examples/hello-node`](examples/hello-node) — the out-of-process
+  `node-backend` adapter; same shape as `hello-backend`, a real Node.js
+  interpreter instead — see [Node.js backend walkthrough](#nodejs-backend-walkthrough)
+  above.
+- [`examples/hello-fullstack`](examples/hello-fullstack) — web + Python
+  backend at once, talking to each other over a declared, validated
+  contract; see [Full-stack walkthrough](#full-stack-walkthrough-web--python-backend)
   below.
 - [`examples/navbar-demo`](examples/navbar-demo) — component
   composition: a `ui.page` component embeds a separately-authored,
   reusable `ui.navbar` component's rendered output via `composes` — see
   [ADR 0010](docs/decisions/0010-component-composition-via-slots.md).
+- [`examples/hello-android`](examples/hello-android) — the `android-gradle`
+  adapter; `omni build android` really invokes Gradle — see
+  [Android walkthrough](#android-walkthrough-a-real-built-apk) below.
 
 ## CLI command reference
 
@@ -460,6 +485,24 @@ omni dev web                 # serves it; prints READY web http://127.0.0.1:<por
 Open the printed URL: a real page with an `<h1>` from `web/app.yaml`, a
 message from the component's default input, and `public/style.css`
 applied. Press Ctrl-C to stop. `omni clean` removes `dist/`.
+
+## Node.js backend walkthrough
+
+```sh
+cd examples/hello-node
+omni check                 # validate without building
+omni build backend          # writes dist/backend/, really invokes node
+cat dist/backend/output.txt  # real captured output from the real script
+```
+
+`examples/hello-node` is structurally identical to `examples/hello-backend`
+— same `omni.yaml` shape, same `svc.greeter` component, same
+`backend/service.json` entry file — but its component declares
+`implementations.backend.adapter: node-backend` and its source is
+`service.js` instead of `service.py`. Requires a Node.js interpreter on
+`PATH` (`node`, or `nodejs` on Debian/Ubuntu); `omni doctor` reports
+exactly what's missing if it isn't found. See
+[ADR 0012](docs/decisions/0012-node-backend-adapter.md).
 
 ## Full-stack walkthrough: web + Python backend
 
@@ -620,7 +663,7 @@ development and production behavior.
 
 ```sh
 cargo build --workspace
-cargo test --workspace      # 138 tests: unit + integration + adapter conformance + dev-process lifecycle + composition + android-gradle (real Gradle build skipped unless OMNIFORGE_RUN_ANDROID_E2E=1 — see ADR 0011)
+cargo test --workspace      # 146 tests: unit + integration + adapter conformance + dev-process lifecycle + composition + node-backend + android-gradle (real Gradle build skipped unless OMNIFORGE_RUN_ANDROID_E2E=1 — see ADR 0011)
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 bash scripts/verify.sh      # all of the above, plus end-to-end builds of all three examples

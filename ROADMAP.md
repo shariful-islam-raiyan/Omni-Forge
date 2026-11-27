@@ -11,8 +11,11 @@ exists so the big picture is visible without opening `docs/`.
 - **Core engine** (project/component/adapter loading, validation,
   dependency resolution, build caching, diagnostics) — implemented and
   tested, language-neutral.
-- **Two real adapters**: `web-static` (in-process, static sites) and
-  `python-backend` (out-of-process, a real Python interpreter).
+- **Three real adapters for `web`/`backend`**: `web-static` (in-process,
+  static sites), `python-backend` (out-of-process, a real Python
+  interpreter), and `node-backend` (out-of-process, a real Node.js
+  interpreter — see ADR 0012). The latter two are interchangeable per
+  component for the `backend` target.
 - **A unified `omni dev`** that builds and serves every enabled target at
   once, managing a real backend dev-server process with graceful
   shutdown.
@@ -41,11 +44,14 @@ In rough priority order (not a committed schedule):
    straightforward for a third party to write a new language/target
    adapter against a documented, versioned protocol, with a conformance
    test suite to check against.
-2. **A second real backend-language adapter** (candidates: Node.js/
-   TypeScript, or Go — reusing the existing `ProcessAdapter` mechanism,
-   which is already language-neutral) with its own real end-to-end
-   example, built incrementally and honestly rather than many adapters at
-   once superficially.
+2. **Done: a second real backend-language adapter** — `node-backend`
+   (Node.js, reusing the existing `ProcessAdapter` mechanism unchanged),
+   with its own real end-to-end example (`examples/hello-node`); see
+   [ADR 0012](docs/decisions/0012-node-backend-adapter.md). A TypeScript
+   adapter (type-check + compile via `tsc`) is a natural next step on the
+   same pattern, not yet started. A Go adapter remains a candidate too, but
+   no Go toolchain exists on this project's own development machine to
+   build and test one against yet.
 3. **Parallel build scheduling** across independent targets — the
    dependency graph is already schedule-ready; no scheduler exists yet.
 4. **Desktop and iOS targets** (Windows, Linux, macOS desktop; iOS) —

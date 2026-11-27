@@ -76,9 +76,42 @@ pub fn known_aliases(canonical: &str) -> Vec<String> {
         // immediately rather than running Python; the `py` launcher
         // resolves to a real interpreter in that case.
         "python3" | "python" => &["python3", "python", "py"],
+        // Debian/Ubuntu's `nodejs` package historically installed only a
+        // `nodejs` binary, not `node`, on PATH (a long-standing packaging
+        // naming conflict with an unrelated "node" package); trying both
+        // keeps the node-backend adapter working there without guessing.
+        "node" => &["node", "nodejs"],
         other => return vec![other.to_string()],
     };
     candidates.iter().map(|s| s.to_string()).collect()
+}
+
+/// Strips the Windows "verbatim" (`\\?\...`) path prefix that
+/// `std::fs::canonicalize` produces, if present — a no-op on non-Windows
+/// paths and on any path not already in that form.
+///
+/// `omni-core`'s project-root canonicalization (`loader::find_project_root`)
+/// is load-bearing for path-safety checks (`safe_join`/`is_within`) and is
+/// not changed here. This function only changes how an already-resolved
+/// absolute path is *spelled* when handed to a child process's argv/cwd —
+/// never which file it refers to. It exists because some external
+/// interpreters mishandle the verbatim form as their own main-script
+/// argument: observed concretely with Node.js on this project's own
+/// development machine, where a canonicalized project root whose directory
+/// name contains a space (`D:\Omni Forge\...`) made Node's internal
+/// `Module._findPath` → `realpathSync` throw `EISDIR` on a path it
+/// mis-parsed down to just `D:` — a real bug, not a hypothetical one.
+/// Python, by contrast, handles the verbatim form correctly, which is why
+/// this was not already needed for `python-backend`.
+pub fn display_for_child(path: &Path) -> PathBuf {
+    let s = path.as_os_str().to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{rest}"))
+    } else if let Some(rest) = s.strip_prefix(r"\\?\") {
+        PathBuf::from(rest)
+    } else {
+        path.to_path_buf()
+    }
 }
 
 fn probe(candidate: &str) -> bool {
@@ -177,8 +210,8 @@ pub fn execute(
     })?;
 
     let mut child = Command::new(executable)
-        .arg(script_path)
-        .current_dir(cwd)
+        .arg(display_for_child(script_path))
+        .current_dir(display_for_child(cwd))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -319,7 +352,7 @@ pub fn run_tool(
 ) -> Result<ToolOutput, Diagnostic> {
     let mut child = Command::new(executable)
         .args(args)
-        .current_dir(cwd)
+        .current_dir(display_for_child(cwd))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -686,15 +719,19 @@ impl Adapter for ProcessAdapter {
         };
 
         let mut args = vec![
-            output_dir.join(entry).display().to_string(),
-            output_dir.join("run-config.json").display().to_string(),
+            display_for_child(&output_dir.join(entry))
+                .display()
+                .to_string(),
+            display_for_child(&output_dir.join("run-config.json"))
+                .display()
+                .to_string(),
         ];
         args.extend(dev.args.iter().cloned());
 
         Some(Ok(DevServePlan {
             executable,
             args,
-            cwd: output_dir.to_path_buf(),
+            cwd: display_for_child(output_dir),
             ready: ReadyCheck::StdoutLinePrefix(dev.ready_stdout_prefix.clone()),
             ready_timeout: Duration::from_millis(dev.ready_timeout_ms),
             stop_grace: Duration::from_millis(dev.stop_grace_ms),

@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased — A second real backend-language adapter (`node-backend`)
+
+- **New adapter: `node-backend`, a second out-of-process `backend`-target
+  adapter.** Proves `ProcessAdapter` (`crates/omni-adapter-api/src/process.rs`)
+  is genuinely language-neutral, not shaped around Python: `node-backend`
+  (`adapters/node-backend/adapter.js`) is a real, dependency-free Node.js
+  script that validates a `service`-kind component's inputs, actually
+  executes the component's script with a real Node interpreter, captures
+  its output, and writes the same runnable-package convention
+  (`app/`, `run.sh`, `run.bat`, `run-config.json`, `output.txt`,
+  `build-manifest.json`) `python-backend` already produces — zero changes
+  to `omni-adapter-api`, `omni-core`, or the orchestrator were needed. See
+  [ADR 0012](docs/decisions/0012-node-backend-adapter.md),
+  `examples/hello-node` (a complete, buildable example), and
+  `crates/omni-cli/tests/node_backend_adapter.rs` (8 white-box tests
+  against the real, embedded script and a real Node interpreter).
+- **Real bug found and fixed while building this**: canonicalized project
+  roots (`std::fs::canonicalize`, used throughout for path-safety checks)
+  produce Windows "verbatim" (`\\?\...`) paths. Node.js's own module
+  resolution for a child process's main script mishandles this form when
+  the path contains a space — `Module._findPath`'s internal `realpathSync`
+  threw `EISDIR` on a path it mis-parsed down to just the drive letter, a
+  real failure reproduced on this project's own `D:\Omni Forge\...`
+  checkout. Fixed generically in `omni_adapter_api::process` via a new
+  `display_for_child` helper, applied wherever an already-canonical path is
+  handed to *any* external child process's argv/cwd (`execute`, `run_tool`,
+  `ProcessAdapter::dev_serve_plan`) — not Node-specific, and not a change to
+  the path-safety canonicalization itself. `python-backend` never hit this
+  because Python's own path handling tolerates the verbatim form.
+- `omni_adapter_api::known_aliases("node")` now tries `node` then `nodejs`
+  (the latter for Debian/Ubuntu installs that historically only provide a
+  `nodejs` binary), mirroring the existing `python3`/`python`/`py` pattern.
+- A project now picks between `python-backend` and `node-backend` per
+  component via `implementations.backend.adapter` — both target `backend`;
+  neither is a new target name.
+
 ## Unreleased — A real Android adapter
 
 - **New target: `android`, via a new `android-gradle` adapter.**
