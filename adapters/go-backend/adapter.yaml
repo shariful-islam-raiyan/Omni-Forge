@@ -1,0 +1,33 @@
+schema: omniforge.dev/adapter/v1
+id: go-backend
+version: 0.1.0
+protocol: out-of-process/v1
+
+capabilities:
+  languages:
+    - go
+  component_kinds:
+    - service
+  targets:
+    - backend
+  operations:
+    - validate
+    - compile
+  # 'node' runs this adapter's own wire-protocol script (adapter.js), not
+  # the component's own code -- Go itself compiles to a real, standalone
+  # native executable (no interpreter needed to run it), resolved by this
+  # adapter's own logic, not declared here for the same "omni doctor
+  # cannot usefully model it" reason ADR 0013 documents for `tsc`: a bare
+  # PATH check is a weaker signal than the real build/validate result.
+  requires:
+    - node
+
+# Deliberately no 'dev' block: the generic dev-serve convention
+# (docs/adapter-protocol.md) assumes the same launcher that runs this
+# adapter's own wire-protocol script also runs the build output
+# (`<launcher> <app-entry> <run-config.json>`) -- true for node-backend/
+# typescript-backend/python-backend (all run their output through an
+# interpreter), but not for a compiled Go binary, which must be executed
+# directly as its own process. Supporting that needs a real change to
+# `ProcessAdapter::dev_serve_plan`'s generic mechanism, not a per-adapter
+# workaround -- tracked as a real, known gap, not silently worked around.

@@ -33,6 +33,11 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install Go (required by the go-backend adapter)
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
       - name: Cache cargo registry and build artifacts
         uses: actions/cache@v4
         with:
@@ -68,6 +73,8 @@ jobs:
           cd ../hello-node
           cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
           cd ../hello-typescript
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+          cd ../hello-go
           cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
           cd ../hello-fullstack
           cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
@@ -123,6 +130,17 @@ jobs:
           test -f dist/backend/output.txt
           test -f dist/build-report.json
           grep -q "Hello from hello-typescript" dist/backend/output.txt
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
+
+      - name: Build the go-backend example and verify artifacts (real go build + execution)
+        shell: bash
+        run: |
+          cd examples/hello-go
+          cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build backend
+          test -f dist/backend/source.go
+          test -f dist/backend/output.txt
+          test -f dist/build-report.json
+          grep -q "Hello from hello-go" dist/backend/output.txt
           cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
 
       - name: Build the full-stack example (both targets) and verify artifacts

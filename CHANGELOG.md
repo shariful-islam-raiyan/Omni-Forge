@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased — A real Go adapter, compiling to a native executable
+
+- **New adapter: `go-backend`.** Architecturally distinct from every
+  adapter before it: `node-backend`/`typescript-backend`/`python-backend`
+  all *interpret* the component's own code, but Go compiles to a real,
+  standalone native executable — `go-backend` builds it for real
+  (`go build`) and then executes that binary **directly**, no
+  interpreter involved in running the component's own code at all.
+  `validate` runs a real compile-check to a discarded temp binary
+  (writes nothing lasting); `compile` keeps the real executable. Proven
+  non-negotiably real by a dedicated test: a genuine type error (a
+  string assigned to an `int`) fails the build with a real `go build`
+  diagnostic. See
+  [ADR 0015](docs/decisions/0015-go-backend-adapter.md),
+  `examples/hello-go`, and `crates/omni-cli/tests/go_backend_adapter.rs`
+  (8 tests).
+- **Go was installed mid-session** via `winget install --id GoLang.Go -e
+  --silent` (the official GoLang publisher, free, no credentials) — this
+  project's development machine had no Go toolchain before this
+  milestone, and the assignment driving this work explicitly permits
+  installing a toolchain when safe and practical.
+- **A second real, general Windows environment-propagation bug found and
+  fixed** (after ADR 0012's `\\?\`-path bug and ADR 0013's `.cmd`-spawn
+  bug): `go build`'s default build cache on Windows needs
+  `%LocalAppData%` (via Go's `os.UserCacheDir()`), which wasn't in
+  `omni_adapter_api::process::controlled_env()`'s allowlist — every
+  `go build` invocation failed outright until it was added. General-
+  purpose, not Go-specific: any future tool following the same Windows
+  convention benefits automatically.
+- `go-backend` deliberately declares no `dev` block: the generic
+  dev-serve convention assumes the same launcher that runs an adapter's
+  wire-protocol script also runs its build output, which doesn't hold
+  for a compiled binary that must run as its own process. Documented as
+  a real, tracked gap (ADR 0015) rather than worked around per-adapter.
+
 ## Unreleased — `omni adapter validate`: a real adapter-SDK tool
 
 - **New command: `omni adapter validate <path>`.** Validates a

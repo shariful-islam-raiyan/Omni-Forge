@@ -4,6 +4,7 @@
 //! `docs/decisions/0004-cli-lib-split.md` for why this lives in the CLI
 //! crate rather than a crate of its own.
 
+pub mod go_backend;
 pub mod node_backend;
 pub mod python_backend;
 pub mod typescript_backend;

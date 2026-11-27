@@ -148,6 +148,15 @@ fn probe(candidate: &str) -> bool {
 /// a standard language runtime (Python, Node, ...) to start up and find
 /// itself on a normal Windows/Linux/macOS install.
 ///
+/// `LocalAppData` was added after a real, reproduced failure (not a
+/// hypothetical one): `go build`'s default build cache location on
+/// Windows is derived from `os.UserCacheDir()`, which specifically reads
+/// `%LocalAppData%` — without it in this allowlist, `go build` refuses to
+/// run at all ("GOCACHE is not defined and %LocalAppData% is not
+/// defined"), observed building `go-backend`'s first real example on this
+/// project's own development machine. General-purpose, not Go-specific —
+/// any future tool with the same Windows convention benefits too.
+///
 /// `pub` so that other process-spawning code which needs the exact same
 /// controlled-environment guarantee (today: the test-only backend-server
 /// harness in `crates/omni-cli/tests/support/`) reuses this one allowlist
@@ -161,6 +170,7 @@ pub fn controlled_env() -> Vec<(String, String)> {
         "TMP",
         "HOME",
         "USERPROFILE",
+        "LocalAppData",
     ]
     .iter()
     .filter_map(|key| std::env::var(key).ok().map(|v| (key.to_string(), v)))

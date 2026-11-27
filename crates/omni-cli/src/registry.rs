@@ -1,4 +1,4 @@
-use crate::adapters::{node_backend, python_backend, typescript_backend};
+use crate::adapters::{go_backend, node_backend, python_backend, typescript_backend};
 use omni_adapter_api::Adapter;
 use omni_android_adapter::AndroidGradleAdapter;
 use omni_web_adapter::WebStaticAdapter;
@@ -23,6 +23,7 @@ pub fn built_in_adapters() -> Vec<Box<dyn Adapter + Send + Sync>> {
         Box::new(python_backend::build()),
         Box::new(node_backend::build()),
         Box::new(typescript_backend::build()),
+        Box::new(go_backend::build()),
         Box::new(AndroidGradleAdapter::new()),
     ]
 }

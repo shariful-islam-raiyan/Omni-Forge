@@ -67,6 +67,16 @@ echo "==> building examples/hello-typescript (requires Node.js + npm; resolves t
   cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
 )
 
+echo "==> building examples/hello-go (requires a Go toolchain)"
+(
+  cd examples/hello-go
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build backend
+  test -f dist/backend/output.txt
+  test -f dist/build-report.json
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
+)
+
 echo "==> building examples/hello-fullstack (both targets, requires a Python 3 toolchain)"
 (
   cd examples/hello-fullstack
