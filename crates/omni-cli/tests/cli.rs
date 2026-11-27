@@ -397,3 +397,54 @@ fn package_all_packages_every_enabled_target() {
         .stdout(predicate::str::contains("packaged target 'web'"));
     assert!(project_dir.join("dist/web.zip").is_file());
 }
+
+/// Security regression test (not a hypothetical): `omni package`'s zip
+/// entry names come from `path.strip_prefix(&target_dir)` on files
+/// `walkdir` actually found *inside* `target_dir` (`crates/omni-cli/src/
+/// commands/package.rs::package_one`) — never from untrusted input
+/// directly — so a zip-slip entry (`../../etc/passwd`, an absolute path,
+/// a Windows drive-letter path) should be structurally impossible. This
+/// asserts that invariant holds for real, built output rather than just
+/// trusting the code's own reasoning about itself.
+#[test]
+fn package_archive_entries_are_all_safe_relative_paths() {
+    let dir = tempfile::tempdir().unwrap();
+    bin()
+        .current_dir(dir.path())
+        .args(["create", "demo-site"])
+        .assert()
+        .success();
+    let project_dir = dir.path().join("demo-site");
+
+    bin()
+        .current_dir(&project_dir)
+        .args(["build", "web"])
+        .assert()
+        .success();
+    bin()
+        .current_dir(&project_dir)
+        .args(["package", "web"])
+        .assert()
+        .success();
+
+    let zip_path = project_dir.join("dist/web.zip");
+    let file = fs::File::open(&zip_path).unwrap();
+    let mut archive = zip::ZipArchive::new(file).unwrap();
+    assert!(!archive.is_empty(), "archive should contain real entries");
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).unwrap();
+        let name = entry.name().unwrap();
+        assert!(
+            !name.starts_with('/') && !name.starts_with('\\'),
+            "entry '{name}' must not be an absolute path"
+        );
+        assert!(
+            !name.contains(".."),
+            "entry '{name}' must not contain a parent-directory traversal segment"
+        );
+        assert!(
+            name.chars().nth(1) != Some(':'),
+            "entry '{name}' must not be a Windows drive-letter absolute path"
+        );
+    }
+}

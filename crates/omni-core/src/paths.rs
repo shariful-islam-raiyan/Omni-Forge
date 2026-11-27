@@ -2,8 +2,27 @@
 //!
 //! All adapter and CLI code that writes files must go through [`safe_join`]
 //! or an [`OutputDir`] so that a malicious or buggy manifest (an absolute
-//! path, a `..` escape, or a symlink pointing outside the project) cannot
-//! cause writes or deletes outside the intended directory.
+//! path or a `..` escape) cannot cause writes or deletes outside the
+//! intended directory.
+//!
+//! **Precise scope of the symlink protection** (stated exactly, not
+//! loosely, since an imprecise security claim is its own bug):
+//! [`safe_join`] itself is a **purely lexical** check — it never calls
+//! [`fs::canonicalize`] or otherwise resolves symlinks, so it cannot by
+//! itself detect a symlink placed *inside* `base` that points outside it.
+//! [`OutputDir::resolve`] *does* canonicalize and verify containment, but
+//! only once, for the output root itself (e.g. `dist/web`) — a `.join()`
+//! call afterward is `safe_join` again (lexical only) against that already
+//! -canonical root. A symlink planted inside an output directory by an
+//! earlier, already-malicious write is therefore not re-detected on every
+//! subsequent write into it. This is a narrow, same-privilege-level risk
+//! (an attacker who can already place such a symlink inside your project
+//! already has your own file-write access — not a privilege escalation),
+//! consistent with this project's documented "no sandboxing beyond argv/
+//! env/cwd/timeout" stance (see `docs/security-model.md`), not a new
+//! vulnerability class. See
+//! `crates/omni-core/src/paths.rs::tests::safe_join_does_not_resolve_a_pre_existing_symlink_inside_base`
+//! for the real (environment-permitting) demonstration.
 
 use crate::error::{OmniError, Result};
 use std::fs;
@@ -151,10 +170,76 @@ fn remove_dir_all_with_retry(path: &Path) -> Result<()> {
     })
 }
 
+/// Creates a symlink pointing at `target` for the test below, or `None` if
+/// this environment doesn't permit it -- on Windows, creating a symlink
+/// (as opposed to a junction) requires Developer Mode or an elevated
+/// process, neither of which a CI runner or this project's own dev
+/// machine necessarily has. Gracefully skipping (rather than failing) on
+/// an environment that can't exercise this follows the same pattern as
+/// this project's other environment-dependent tests (e.g. the Python/
+/// Node toolchain-presence checks).
+#[cfg(test)]
+fn try_make_symlink(link: &Path, target: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        std::os::windows::fs::symlink_dir(target, link).is_ok()
+    }
+    #[cfg(not(windows))]
+    {
+        std::os::unix::fs::symlink(target, link).is_ok()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    /// Demonstrates, for real, the precise scope documented in this
+    /// module's top-level doc comment: `safe_join` is lexical-only and
+    /// does not itself detect a *pre-existing* symlink inside `base` that
+    /// points outside it -- a real file write through the resulting path
+    /// would actually land outside `base`. This is the honest adversarial
+    /// test the project's security review calls for; it is NOT evidence
+    /// of a newly-introduced bug -- the containing module doc already
+    /// states this exact scope limitation, and the threat model is
+    /// same-privilege (see that doc comment for why this isn't a privilege
+    /// escalation). Skips gracefully if this environment won't allow
+    /// creating a symlink at all (see `try_make_symlink`).
+    #[test]
+    fn safe_join_does_not_resolve_a_pre_existing_symlink_inside_base() {
+        let dir = tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        let base = root.join("project");
+        let outside = root.join("outside");
+        fs::create_dir_all(&base).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+
+        let link = base.join("escape");
+        if !try_make_symlink(&link, &outside) {
+            eprintln!(
+                "skipping: this environment does not permit creating a symlink \
+                 (e.g. Windows without Developer Mode / elevation)"
+            );
+            return;
+        }
+
+        // safe_join accepts this: it is lexically "project/escape/secret.txt",
+        // which textually starts with `base`.
+        let resolved = safe_join(&base, "escape/secret.txt").expect("lexically valid");
+        assert!(resolved.starts_with(&base));
+
+        // But a real write through that path follows the symlink and lands
+        // in `outside`, not `base` -- the escape this module's doc comment
+        // describes precisely.
+        fs::write(&resolved, b"leaked").unwrap();
+        assert!(
+            outside.join("secret.txt").is_file(),
+            "the write should have followed the symlink out of 'base' -- \
+             if this assertion fails, safe_join's behavior has changed \
+             and this module's doc comment needs updating to match"
+        );
+    }
 
     #[test]
     fn rejects_absolute_paths() {

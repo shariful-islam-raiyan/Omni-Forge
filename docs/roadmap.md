@@ -94,7 +94,7 @@ resource (a toolchain, a sandboxing design) this milestone didn't produce.
 
 | Item | Status | Notes |
 |---|---|---|
-| Path traversal protection | Implemented | `safe_join` (Rust) + `is_within()` (Python, defense in depth), both tested |
+| Path traversal protection | Implemented | `safe_join` (Rust) + `is_within()` (Python, defense in depth), both tested. Lexical `..`/absolute-path rejection only — does not resolve a pre-existing symlink placed inside the trusted base; see `docs/security-model.md`'s "What's explicitly NOT implemented" for the real, tested scope of that gap |
 | Safe output/clean handling | Implemented | `OutputDir`, tested, with retry for a real observed Windows AV-lock flake |
 | Safe subprocess invocation | Implemented | `crates/omni-adapter-api/src/process.rs`: argv-only, controlled cwd/env, enforced timeout — used by `doctor`'s tool checks, toolchain resolution, and every `python-backend` invocation |
 | Secret redaction in reports/cache/logs | Implemented | Adapter child processes get an explicit environment allowlist, not the parent's full environment (`controlled_env`); nothing in the pipeline reads env vars or secret stores otherwise |

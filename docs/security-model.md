@@ -213,6 +213,24 @@ project's own backend component), not third-party input.
 
 ## What's explicitly NOT implemented (don't assume otherwise)
 
+- **`safe_join` does not resolve a pre-existing symlink placed inside
+  `base`.** Confirmed with a real adversarial test, not a hypothetical:
+  `crates/omni-core/src/paths.rs::tests::
+  safe_join_does_not_resolve_a_pre_existing_symlink_inside_base` creates
+  a real symlink inside a trusted base directory pointing outside it,
+  calls `safe_join` (which accepts the resulting path — it is purely
+  lexical, performing no `fs::canonicalize`/symlink resolution), then
+  performs a real file write through the returned path and confirms it
+  actually lands outside `base`. `OutputDir::resolve` *does* canonicalize
+  and verify containment, but only once, for the output root itself — a
+  symlink planted inside that root by an earlier write is not re-detected
+  on every subsequent `.join()`. This is a narrow, same-privilege-level
+  risk: an attacker who can already place such a symlink inside your
+  project already has your own file-write access, so this is not a
+  privilege escalation — but it is a real, confirmed gap, not a
+  theoretical one, and is stated as such here and in `paths.rs`'s own
+  module doc rather than relying on the previous (slightly overclaiming)
+  wording that implied `safe_join` resolved symlinks generally.
 - **No sandboxing of adapter child processes.** `python-backend`'s child
   process (and `android-gradle`'s real Gradle invocation, and everything
   Gradle itself spawns/downloads during a build) runs with the same user
