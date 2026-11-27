@@ -17,7 +17,7 @@ use omni_web_adapter::WebStaticAdapter;
 /// registered regardless of whether this machine's Android toolchain is
 /// actually present; a missing toolchain is reported at build/doctor time
 /// (`E-ANDROID-TOOLCHAIN-MISSING`), not by omitting the adapter.
-pub fn built_in_adapters() -> Vec<Box<dyn Adapter>> {
+pub fn built_in_adapters() -> Vec<Box<dyn Adapter + Send + Sync>> {
     vec![
         Box::new(WebStaticAdapter::new()),
         Box::new(python_backend::build()),

@@ -30,7 +30,7 @@ resource (a toolchain, a sandboxing design) this milestone didn't produce.
 | Dependency graph + cycle detection | Implemented | `graph.rs`, deterministic ordering |
 | Build-plan generation | Implemented | `ResolvedBuildPlan` |
 | Local build cache | Implemented | Scoped as described in `caching.md`; works identically for the `backend` target |
-| Parallel task execution | Planned | Graph output is schedule-ready; no scheduler exists; everything runs sequentially, including out-of-process adapter calls |
+| Parallel task execution across targets | Implemented | `commands::build`'s `build_targets_parallel` (`crates/omni-cli/src/commands/build.rs`), gated behind `omni.yaml`'s `build.parallel: true` (default `false`, unchanged behavior) — one OS thread per target via `std::thread::scope`, safe because cache/output are scoped per target. Proven real with two genuinely concurrent adapters (`web-static` + `node-backend`) in `crates/omni-cli/tests/parallel_build.rs`, plus failure-isolation under concurrency. Does **not** parallelize within one target's own component graph — that remains sequential (`orchestrator::build_target`), still Planned. |
 | Diagnostics with stable codes | Implemented | ~60 codes across the codebase, including the `E-ADAPTER-*` (mechanism) and `E-PYADAPTER-*` (python-backend business logic) families |
 
 ## Adapters

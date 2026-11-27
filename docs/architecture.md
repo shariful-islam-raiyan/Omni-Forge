@@ -56,14 +56,14 @@ one piece of machinery every out-of-process adapter — not just
 that actually ties a loaded project, discovered components, and the
 adapter registry together into one target's build: resolve → (validate |
 compile) → cache → verify artifacts → report. It calls `.validate()`/
-`.compile()` on a `Box<dyn Adapter>` without knowing or caring whether
-that's `WebStaticAdapter` (in-process) or `ProcessAdapter`
-(out-of-process) underneath — the whole point of the trait. It is
-intentionally sequential; `omni-core::graph::DependencyGraph` already
-produces a deterministic order that a future scheduler could run in
-parallel across independent targets, but no such scheduler exists yet
-(see [docs/roadmap.md](roadmap.md)) — nothing claims parallel execution
-today.
+`.compile()` on a `Box<dyn Adapter + Send + Sync>` without knowing or
+caring whether that's `WebStaticAdapter` (in-process) or `ProcessAdapter`
+(out-of-process) underneath — the whole point of the trait. Building one
+target (`orchestrator::build_target`) is sequential internally; building
+*multiple* targets (`commands::build`) is sequential by default but
+genuinely runs each independent target on its own OS thread
+(`std::thread::scope`) when `omni.yaml`'s `build.parallel` is `true` — see
+[docs/build-system.md](build-system.md#parallel-target-builds).
 
 **Unified dev runtime** (`crates/omni-cli/src/devrun.rs`) — `omni dev`'s
 orchestration: builds every requested/enabled target through the same

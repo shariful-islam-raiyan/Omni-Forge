@@ -1,8 +1,10 @@
 use crate::diag_print;
 use crate::orchestrator::{self, Mode};
 use crate::registry;
-use omni_core::loader;
+use omni_adapter_api::Adapter;
+use omni_core::loader::{self, LoadedProject};
 use omni_core::spec::build_report::{BuildReport, ProjectRef, TargetReport, TargetStatus};
+use omni_core::spec::component::ComponentManifest;
 use omni_core::spec::project::KNOWN_TARGETS;
 use std::path::Path;
 
@@ -61,30 +63,11 @@ pub fn run(cwd: &Path, target_arg: &str, allow_partial: bool) -> i32 {
         return 1;
     }
 
-    let mut reports: Vec<TargetReport> = Vec::new();
-    for t in &target_names {
-        println!("==> building target '{t}'");
-        let report = orchestrator::build_target(&loaded, t, &components, &adapters, Mode::Compile);
-        diag_print::print_all(&report.diagnostics);
-        match report.status {
-            TargetStatus::Success => {
-                let cache_note = match report.cache {
-                    Some(omni_core::spec::build_report::CacheResult::Hit) => " (cache hit)",
-                    Some(omni_core::spec::build_report::CacheResult::Miss) => "",
-                    _ => "",
-                };
-                println!(
-                    "    target '{t}': SUCCESS{cache_note} ({} artifact(s))",
-                    report.artifacts.len()
-                );
-            }
-            TargetStatus::Failed => println!("    target '{t}': FAILED"),
-            TargetStatus::Unsupported => println!("    target '{t}': UNSUPPORTED"),
-            TargetStatus::Skipped => println!("    target '{t}': SKIPPED"),
-            TargetStatus::Partial => println!("    target '{t}': PARTIAL"),
-        }
-        reports.push(report);
-    }
+    let reports: Vec<TargetReport> = if loaded.file.build.parallel && target_names.len() > 1 {
+        build_targets_parallel(&loaded, &target_names, &components, &adapters)
+    } else {
+        build_targets_sequential(&loaded, &target_names, &components, &adapters)
+    };
 
     let build_report = BuildReport::new(
         ProjectRef {
@@ -139,4 +122,86 @@ pub fn run(cwd: &Path, target_arg: &str, allow_partial: bool) -> i32 {
         println!("\nbuild SUCCESS");
     }
     0
+}
+
+/// Builds every target one at a time, printing each one's status as it
+/// finishes — the original, always-correct behavior, and still the default
+/// (`build.parallel: false` in `omni.yaml`, or a single target regardless
+/// of the flag).
+fn build_targets_sequential(
+    loaded: &LoadedProject,
+    target_names: &[String],
+    components: &[ComponentManifest],
+    adapters: &[Box<dyn Adapter + Send + Sync>],
+) -> Vec<TargetReport> {
+    let mut reports = Vec::with_capacity(target_names.len());
+    for t in target_names {
+        println!("==> building target '{t}'");
+        let report = orchestrator::build_target(loaded, t, components, adapters, Mode::Compile);
+        print_target_result(t, &report);
+        reports.push(report);
+    }
+    reports
+}
+
+/// Builds every target concurrently, one OS thread per target. Safe because
+/// each target's build cache entries and output directory are scoped under
+/// its own name (see `orchestrator`'s module doc) — independent targets
+/// cannot collide on disk, and the resolver already guarantees each
+/// target's component graph is resolved independently of any other
+/// target's. Output is buffered per target and flushed in `target_names`
+/// order once every thread has finished, rather than interleaved live, so
+/// the printed result is identical and deterministic regardless of which
+/// target's adapter actually finishes first.
+fn build_targets_parallel(
+    loaded: &LoadedProject,
+    target_names: &[String],
+    components: &[ComponentManifest],
+    adapters: &[Box<dyn Adapter + Send + Sync>],
+) -> Vec<TargetReport> {
+    println!(
+        "==> building {} targets in parallel: {}",
+        target_names.len(),
+        target_names.join(", ")
+    );
+    let results: Vec<TargetReport> = std::thread::scope(|scope| {
+        let handles: Vec<_> = target_names
+            .iter()
+            .map(|t| {
+                scope.spawn(|| {
+                    orchestrator::build_target(loaded, t, components, adapters, Mode::Compile)
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("build_target must not panic"))
+            .collect()
+    });
+
+    for (t, report) in target_names.iter().zip(results.iter()) {
+        print_target_result(t, report);
+    }
+    results
+}
+
+fn print_target_result(target: &str, report: &TargetReport) {
+    diag_print::print_all(&report.diagnostics);
+    match report.status {
+        TargetStatus::Success => {
+            let cache_note = match report.cache {
+                Some(omni_core::spec::build_report::CacheResult::Hit) => " (cache hit)",
+                Some(omni_core::spec::build_report::CacheResult::Miss) => "",
+                _ => "",
+            };
+            println!(
+                "    target '{target}': SUCCESS{cache_note} ({} artifact(s))",
+                report.artifacts.len()
+            );
+        }
+        TargetStatus::Failed => println!("    target '{target}': FAILED"),
+        TargetStatus::Unsupported => println!("    target '{target}': UNSUPPORTED"),
+        TargetStatus::Skipped => println!("    target '{target}': SKIPPED"),
+        TargetStatus::Partial => println!("    target '{target}': PARTIAL"),
+    }
 }

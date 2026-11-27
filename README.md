@@ -195,7 +195,7 @@ resource this project doesn't have yet.
 | Local build cache | Implemented | Content-addressed, scoped (see [docs/caching.md](docs/caching.md)) |
 | Component composition (one component's rendered output embedded in another's) | Implemented | `composes` in `component.yaml`; `web-static` only; see [ADR 0010](docs/decisions/0010-component-composition-via-slots.md) and `examples/navbar-demo`. A slot's inputs are static, not interpolated from the parent's own inputs — see that ADR's Consequences |
 | `omni test` | Partial | Reports honestly that no adapter implements the `test` operation yet — never fakes a pass |
-| Parallel build scheduling | Planned | The dependency graph is already schedule-ready; no scheduler exists |
+| Parallel build scheduling across targets | Implemented | `omni.yaml`'s `build.parallel: true` builds independent targets concurrently (one OS thread each); default stays `false` (sequential, unchanged). Does not parallelize within one target's own component graph yet |
 | Third-party adapter trust/enablement | Planned | Only adapters this repository ships and reviews can run today |
 | Adapter sandboxing beyond argv/env/cwd/timeout | Blocked | No third-party adapter exists yet to sandbox; see security model |
 | Desktop targets (Windows/Linux/macOS) | Planned | Vocabulary exists (`omni.yaml` accepts the target names); no adapter |

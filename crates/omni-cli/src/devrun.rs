@@ -179,7 +179,7 @@ pub fn start_with_adapters(
     cwd: &Path,
     requested_targets: &[String],
     port_overrides: &[(String, u16)],
-    adapters: Vec<Box<dyn omni_adapter_api::Adapter>>,
+    adapters: Vec<Box<dyn omni_adapter_api::Adapter + Send + Sync>>,
 ) -> Result<DevSession, i32> {
     let root = loader::find_project_root(cwd).map_err(|e| {
         eprintln!("error: {e}");

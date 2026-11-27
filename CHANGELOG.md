@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased — Parallel build scheduling across targets
+
+- **`omni.yaml`'s `build.parallel` field is now acted on** (previously
+  stored but ignored). `false` (the default, unchanged) builds targets one
+  after another, exactly as before. `true`, with more than one target to
+  build, builds each independent target on its own OS thread
+  (`std::thread::scope` in `crates/omni-cli/src/commands/build.rs`) —
+  real concurrent adapter invocation, not cosmetic. Safe because the build
+  cache and output directory are already scoped per target; results are
+  assembled into `build-report.json` in the original target-name order
+  (never completion order), so the report stays deterministic regardless
+  of which adapter finishes first. Proven with two genuinely concurrent,
+  different adapters (`web-static` + `node-backend`) in
+  `crates/omni-cli/tests/parallel_build.rs`, including failure isolation
+  under concurrency. Does not parallelize within one target's own
+  component graph — that remains sequential.
+- `omni_adapter_api::Adapter` trait objects used across the CLI are now
+  `Box<dyn Adapter + Send + Sync>` (was `Box<dyn Adapter>`) to allow
+  sharing adapter instances across threads — no change to the trait
+  itself or to any adapter implementation, since every shipped adapter was
+  already `Send + Sync` by construction (plain owned data, no interior
+  mutability).
+
 ## Unreleased — A second real backend-language adapter (`node-backend`)
 
 - **New adapter: `node-backend`, a second out-of-process `backend`-target

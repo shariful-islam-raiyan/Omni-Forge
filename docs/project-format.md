@@ -34,7 +34,7 @@ components:
 build:
   output: dist                  # default shown
   cache: true                   # default shown
-  parallel: false                # default shown; stored but not yet acted on (see roadmap)
+  parallel: false                # default shown; true builds independent targets concurrently (see build-system.md#parallel-target-builds) -- only affects building more than one target at once, not within one target
 
 security:
   strict_adapter_permissions: true   # default shown; see security-model.md

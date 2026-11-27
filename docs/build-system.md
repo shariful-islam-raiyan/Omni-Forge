@@ -72,12 +72,39 @@ SHA-256), and every diagnostic produced.
 No secrets, environment variables, or absolute-outside-project paths are
 written into the report — see [security-model.md](security-model.md).
 
+## Parallel target builds
+
+`build_target` runs everything for *one* target sequentially (its own
+component graph, in dependency order). Across *multiple* targets,
+`commands::build` offers two paths, chosen by `omni.yaml`'s
+`build.parallel` field:
+
+- **`parallel: false` (default).** `omni build all`/an explicit target
+  list runs targets one after another — unchanged since this project's
+  first release.
+- **`parallel: true`**, with more than one target to build: each target
+  is built on its own OS thread (`std::thread::scope` in
+  `crates/omni-cli/src/commands/build.rs`), joined, then results are
+  printed and assembled into `build-report.json` in the *original*
+  target-name order — never completion order — so the report stays
+  deterministic regardless of which adapter actually finished first.
+  Safe because independent targets cannot collide on disk: the build
+  cache is scoped per target (`.omniforge/cache/<target>/...`, see
+  [caching.md](caching.md)) and output is scoped per target
+  (`dist/<target>/...`); the resolver already computes each target's
+  component graph independently of any other target's. One target's
+  failure cannot affect another's already-written artifacts or status
+  either way — proven for both the sequential and parallel path by
+  `crates/omni-cli/tests/build_all_partial_failure.rs` and
+  `crates/omni-cli/tests/parallel_build.rs`.
+
+This does **not** parallelize *within* one target's component graph
+(`DependencyGraph::topological_order`'s per-component scheduling) — that
+remains sequential and is still Planned, tracked in `docs/roadmap.md`.
+
 ## What's deliberately not here yet
 
-- **Parallel execution.** `DependencyGraph::topological_order` already
-  gives a valid schedule a parallel executor could use, but
-  `build_target` runs everything for one target sequentially, and
-  `omni build all` runs targets one after another. Marked Planned in
-  `docs/roadmap.md`, not implemented.
+- **Intra-target parallelism.** One target's own component graph still
+  builds sequentially even under `build.parallel: true` — see above.
 - **Incremental, sub-target caching.** The cache is keyed per target as a
   whole (see [caching.md](caching.md)), not per component or per file.

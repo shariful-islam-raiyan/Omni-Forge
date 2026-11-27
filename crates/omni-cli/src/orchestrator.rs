@@ -1,9 +1,11 @@
 //! Ties `omni-core` (discovery/resolution) and `omni-adapter-api` (adapter
 //! execution) together into one target build, including cache lookup and
-//! build-report assembly. This is intentionally sequential today; the task
-//! model (`omni_core::graph`) already supports future parallel scheduling
-//! across independent targets, but we do not claim parallel execution until
-//! it exists (see docs/roadmap.md).
+//! build-report assembly. `build_target` itself builds exactly one target,
+//! sequentially; it is safe to call concurrently for independent targets
+//! from multiple threads (see `commands::build`'s `build.parallel` path) —
+//! each target's cache entries and output directory are scoped under its
+//! own name (`.omniforge/cache/<target>/...`, `dist/<target>/...`), so
+//! concurrent targets cannot collide on disk.
 
 use omni_adapter_api::{Adapter, BuildContext};
 use omni_core::cache::{BuildCache, CacheKeyBuilder};
@@ -30,7 +32,7 @@ pub fn build_target(
     loaded: &LoadedProject,
     target_name: &str,
     components: &[ComponentManifest],
-    adapters: &[Box<dyn Adapter>],
+    adapters: &[Box<dyn Adapter + Send + Sync>],
     mode: Mode,
 ) -> TargetReport {
     let Some(target_cfg) = loaded.file.targets.get(target_name) else {

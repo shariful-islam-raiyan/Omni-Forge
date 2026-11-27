@@ -30,7 +30,7 @@ fn fresh_copy() -> tempfile::TempDir {
 /// "Python is not installed" without touching the real process environment
 /// (`PATH`), which would be both invasive and flaky for tests that may run
 /// in parallel.
-fn adapters_with_missing_backend_toolchain() -> Vec<Box<dyn Adapter>> {
+fn adapters_with_missing_backend_toolchain() -> Vec<Box<dyn Adapter + Send + Sync>> {
     vec![
         Box::new(omni_web_adapter::WebStaticAdapter::new()),
         Box::new(omni_cli::adapters::python_backend::build_with_candidates(
