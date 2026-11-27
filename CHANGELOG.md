@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased — `omni adapter validate`: a real adapter-SDK tool
+
+- **New command: `omni adapter validate <path>`.** Validates a
+  third-party or in-progress adapter manifest **on its own** — schema
+  validation against `specs/adapter.schema.json`, then the same
+  conformance invariants (`omni_adapter_api::conformance::check_manifest`,
+  factored out of the existing `check_manifest_invariants` so it can run
+  against a bare manifest, not just a live `Adapter` instance) every
+  shipped adapter's own test suite already calls. Accepts a directory
+  (looks for `adapter.yaml` inside) or a direct file path; `--json` for
+  structured output. Does **not** register, load, or execute the
+  adapter in any way — no change to this project's "no third-party
+  adapter is trusted or run" policy (`docs/security-model.md`). This is
+  the concrete tool `docs/adapter-protocol.md`'s extension guide was
+  missing: a developer writing a new adapter can now check it against
+  the real schema/conformance bar before ever wiring it into
+  `crates/omni-cli/src/registry.rs`.
+
 ## Unreleased — CI matrix expansion (macOS; Node.js in the main gate)
 
 - `.github/workflows/ci.yml`'s main `test` job now also runs on

@@ -1,4 +1,5 @@
 pub mod adapter_list;
+pub mod adapter_validate;
 pub mod build;
 pub mod check;
 pub mod clean;

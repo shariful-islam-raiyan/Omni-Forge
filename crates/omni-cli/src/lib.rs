@@ -99,6 +99,13 @@ pub enum AdapterAction {
         #[arg(long)]
         json: bool,
     },
+    /// Validate a third-party or in-progress adapter manifest on its own
+    /// (schema + conformance) -- does not register, load, or execute it.
+    Validate {
+        path: std::path::PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Parses `argv` and runs the matching command, returning a process exit
@@ -119,6 +126,7 @@ pub fn run() -> ExitCode {
         Command::Check { target, json } => commands::check::run(&cwd, target.as_deref(), json),
         Command::Adapter { action } => match action {
             AdapterAction::List { json } => commands::adapter_list::run(json),
+            AdapterAction::Validate { path, json } => commands::adapter_validate::run(&path, json),
         },
         Command::Doctor => commands::doctor::run(),
         Command::Build {

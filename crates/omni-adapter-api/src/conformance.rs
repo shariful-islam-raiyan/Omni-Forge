@@ -3,6 +3,7 @@
 //! concrete bar to pass rather than an informal description.
 
 use crate::adapter::Adapter;
+use omni_core::spec::adapter::AdapterManifest;
 
 const KNOWN_OPERATIONS: &[&str] = &[
     "discover", "validate", "resolve", "compile", "bundle", "package", "test", "run", "debug",
@@ -12,9 +13,17 @@ const KNOWN_KINDS: &[&str] = &["ui", "logic", "service", "library", "tool"];
 const KNOWN_PROTOCOLS: &[&str] = &["in-process/v1", "out-of-process/v1"];
 
 /// Returns a list of violations; an adapter is conformant iff this is empty.
+/// Takes a live `&dyn Adapter` -- for checking a manifest on its own
+/// (e.g. one read from disk, with no `Adapter` implementation attached,
+/// as `omni adapter validate` does), use [`check_manifest`] directly.
 pub fn check_manifest_invariants(adapter: &dyn Adapter) -> Vec<String> {
+    check_manifest(adapter.manifest())
+}
+
+/// The same checks [`check_manifest_invariants`] runs, against a manifest
+/// value directly rather than a live adapter instance.
+pub fn check_manifest(m: &AdapterManifest) -> Vec<String> {
     let mut violations = Vec::new();
-    let m = adapter.manifest();
 
     if m.id.is_empty()
         || !m
