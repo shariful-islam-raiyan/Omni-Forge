@@ -17,7 +17,7 @@
 mod manifest;
 mod template;
 
-pub use manifest::{PublicAssets, RootRef, WebAppManifest};
+pub use manifest::{PublicAssets, RootRef, SeoConfig, WebAppManifest};
 
 use omni_adapter_api::{Adapter, Artifact, BuildContext, CompileOutput};
 use omni_core::diagnostics::{Diagnostic, Diagnostics};
@@ -69,6 +69,103 @@ struct PreparedPage {
     css: Vec<String>,
     js: Vec<String>,
     assets: Vec<String>,
+    /// `None` when `seo.site_url` isn't configured — see
+    /// `docs/seo.md`: both are honestly skipped rather than written with
+    /// a guessed or relative URL.
+    robots_txt: Option<String>,
+    sitemap_xml: Option<String>,
+}
+
+/// Builds every `<head>` addition this adapter can honestly produce from
+/// `app`'s declared title/seo config: a responsive viewport (always —
+/// zero-cost, real default), a description meta, a robots meta (default
+/// `index, follow`), a canonical link (from `canonical_url`, falling back
+/// to `site_url`), Open Graph title/description/image/type, and — only
+/// when `site_url` is configured — a minimal, real `WebSite` JSON-LD
+/// block (name + url only; this adapter has no author/organization/date
+/// data to honestly populate anything richer). See `docs/seo.md` for
+/// exactly what's covered and what deliberately isn't (no per-page
+/// duplicate-title checking, no Lighthouse integration — single page,
+/// single adapter, real but small scope).
+fn build_seo_head(raw_title: &str, seo: &manifest::SeoConfig) -> String {
+    use template::escape_html as esc;
+    let mut head = String::new();
+    head.push_str("\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+
+    if let Some(description) = &seo.description {
+        head.push_str(&format!(
+            "\n    <meta name=\"description\" content=\"{}\">",
+            esc(description)
+        ));
+    }
+
+    let robots = seo.robots.as_deref().unwrap_or("index, follow");
+    head.push_str(&format!(
+        "\n    <meta name=\"robots\" content=\"{}\">",
+        esc(robots)
+    ));
+
+    let canonical = seo.canonical_url.as_deref().or(seo.site_url.as_deref());
+    if let Some(canonical) = canonical {
+        head.push_str(&format!(
+            "\n    <link rel=\"canonical\" href=\"{}\">",
+            esc(canonical)
+        ));
+    }
+
+    head.push_str(&format!(
+        "\n    <meta property=\"og:type\" content=\"website\">\n    <meta property=\"og:title\" content=\"{}\">",
+        esc(raw_title)
+    ));
+    if let Some(description) = &seo.description {
+        head.push_str(&format!(
+            "\n    <meta property=\"og:description\" content=\"{}\">",
+            esc(description)
+        ));
+    }
+    if let Some(image) = &seo.og_image {
+        head.push_str(&format!(
+            "\n    <meta property=\"og:image\" content=\"{}\">",
+            esc(image)
+        ));
+    }
+
+    if let Some(site_url) = &seo.site_url {
+        let json_ld = serde_json::json!({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": raw_title,
+            "url": site_url,
+        });
+        head.push_str(&format!(
+            "\n    <script type=\"application/ld+json\">{}</script>",
+            serde_json::to_string(&json_ld).unwrap_or_default()
+        ));
+    }
+
+    head
+}
+
+fn build_robots_txt(seo: &manifest::SeoConfig) -> String {
+    let mut out = String::from("User-agent: *\nAllow: /\n");
+    if let Some(site_url) = &seo.site_url {
+        out.push_str(&format!(
+            "\nSitemap: {}/sitemap.xml\n",
+            site_url.trim_end_matches('/')
+        ));
+    }
+    out
+}
+
+/// A single-page sitemap — honest about `web-static`'s real scope (one
+/// rendered root component, no routing). `None` unless `seo.site_url` is
+/// configured (an absolute URL is required for a conformant sitemap).
+fn build_sitemap_xml(seo: &manifest::SeoConfig) -> Option<String> {
+    let site_url = seo.site_url.as_ref()?;
+    let loc = template::escape_html(site_url.trim_end_matches('/'));
+    Some(format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <url>\n    <loc>{loc}/</loc>\n  </url>\n</urlset>\n"
+    ))
 }
 
 impl WebStaticAdapter {
@@ -390,6 +487,8 @@ impl WebStaticAdapter {
         }
 
         let title = template::escape_html(&app.title);
+        let lang = template::escape_html(app.seo.lang.as_deref().unwrap_or("en"));
+        let seo_head = build_seo_head(&app.title, &app.seo);
         let css_links: String = css
             .iter()
             .map(|c| format!("\n    <link rel=\"stylesheet\" href=\"assets/{c}\">"))
@@ -400,7 +499,7 @@ impl WebStaticAdapter {
             .collect();
 
         let html = format!(
-            "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>{title}</title>{css_links}\n  </head>\n  <body>\n{fragment}\n  </body>{js_tags}\n</html>\n"
+            "<!doctype html>\n<html lang=\"{lang}\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>{title}</title>{seo_head}{css_links}\n  </head>\n  <body>\n{fragment}\n  </body>{js_tags}\n</html>\n"
         );
 
         Some(PreparedPage {
@@ -408,6 +507,8 @@ impl WebStaticAdapter {
             css,
             js,
             assets,
+            robots_txt: Some(build_robots_txt(&app.seo)),
+            sitemap_xml: build_sitemap_xml(&app.seo),
         })
     }
 }
@@ -474,6 +575,22 @@ impl Adapter for WebStaticAdapter {
 
         if let Some(a) = write("index.html", page.html.as_bytes(), &mut diags) {
             artifacts.push(a);
+        }
+        if let Some(robots) = &page.robots_txt {
+            if let Some(a) = write("robots.txt", robots.as_bytes(), &mut diags) {
+                artifacts.push(a);
+            }
+        }
+        match &page.sitemap_xml {
+            Some(sitemap) => {
+                if let Some(a) = write("sitemap.xml", sitemap.as_bytes(), &mut diags) {
+                    artifacts.push(a);
+                }
+            }
+            None => diags.push(Diagnostic::info(
+                "I-WEB-SITEMAP-SKIPPED",
+                "sitemap.xml was not generated: 'seo.site_url' is not set in the web app manifest",
+            )),
         }
 
         let public_dir = ctx.project_root.join("public");

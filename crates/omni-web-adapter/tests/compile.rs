@@ -328,3 +328,131 @@ fn adapter_manifest_is_conformant() {
     let violations = omni_adapter_api::conformance::check_manifest_invariants(&adapter);
     assert!(violations.is_empty(), "{violations:?}");
 }
+
+fn scaffold_with_seo(root: &std::path::Path, app_yaml_seo_block: &str) {
+    fs::create_dir_all(root.join("lib/components/ui.home")).unwrap();
+    fs::create_dir_all(root.join("web")).unwrap();
+    fs::write(
+        root.join("lib/components/ui.home/component.yaml"),
+        r#"
+schema: omniforge.dev/component/v1
+name: ui.home
+version: 1.0.0
+kind: ui
+interface:
+  inputs:
+    title:
+      type: string
+      required: true
+implementations:
+  web:
+    adapter: web-static
+    source: ./home.html.tmpl
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("lib/components/ui.home/home.html.tmpl"),
+        "<h1>{{title}}</h1>",
+    )
+    .unwrap();
+    fs::write(
+        root.join("web/app.yaml"),
+        format!(
+            "schema: omniforge.dev/webapp/v1\ntitle: \"Hello & <Welcome>\"\nroot:\n  component: ui.home\n  inputs:\n    title: \"Hi\"\n{app_yaml_seo_block}"
+        ),
+    )
+    .unwrap();
+}
+
+#[test]
+fn full_seo_config_produces_real_meta_tags_robots_and_sitemap() {
+    let dir = tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    scaffold_with_seo(
+        &root,
+        r#"seo:
+  description: "A real & honest description"
+  site_url: "https://example.com/"
+  og_image: "https://example.com/og.png"
+  robots: "index, follow"
+  lang: "fr"
+"#,
+    );
+    let ctx = make_ctx(&root);
+    let adapter = WebStaticAdapter::new();
+    let result = adapter.compile(&ctx);
+    assert!(
+        !result.diagnostics.has_errors(),
+        "{:?}",
+        result.diagnostics.items()
+    );
+    assert!(result
+        .artifacts
+        .iter()
+        .any(|a| a.relative_path == "robots.txt"));
+    assert!(result
+        .artifacts
+        .iter()
+        .any(|a| a.relative_path == "sitemap.xml"));
+
+    let html = fs::read_to_string(root.join("dist/index.html")).unwrap();
+    assert!(html.contains("<html lang=\"fr\">"));
+    assert!(
+        html.contains("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">")
+    );
+    assert!(
+        html.contains("<meta name=\"description\" content=\"A real &amp; honest description\">")
+    );
+    assert!(html.contains("<meta name=\"robots\" content=\"index, follow\">"));
+    assert!(html.contains("<link rel=\"canonical\" href=\"https://example.com/\">"));
+    assert!(html.contains("<meta property=\"og:title\" content=\"Hello &amp; &lt;Welcome&gt;\">"));
+    assert!(html.contains("<meta property=\"og:image\" content=\"https://example.com/og.png\">"));
+    assert!(html.contains("\"@type\":\"WebSite\""));
+
+    let robots = fs::read_to_string(root.join("dist/robots.txt")).unwrap();
+    assert!(robots.contains("User-agent: *"));
+    assert!(robots.contains("Allow: /"));
+    assert!(robots.contains("Sitemap: https://example.com/sitemap.xml"));
+
+    let sitemap = fs::read_to_string(root.join("dist/sitemap.xml")).unwrap();
+    assert!(sitemap.contains("<loc>https://example.com/</loc>"));
+}
+
+#[test]
+fn without_site_url_sitemap_is_honestly_skipped_but_robots_still_allows_all() {
+    let dir = tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    scaffold_with_seo(&root, "");
+    let ctx = make_ctx(&root);
+    let adapter = WebStaticAdapter::new();
+    let result = adapter.compile(&ctx);
+    assert!(
+        !result.diagnostics.has_errors(),
+        "{:?}",
+        result.diagnostics.items()
+    );
+    assert!(!result
+        .artifacts
+        .iter()
+        .any(|a| a.relative_path == "sitemap.xml"));
+    assert!(result
+        .artifacts
+        .iter()
+        .any(|a| a.relative_path == "robots.txt"));
+    assert!(result
+        .diagnostics
+        .items()
+        .iter()
+        .any(|d| d.code == "I-WEB-SITEMAP-SKIPPED"));
+
+    let robots = fs::read_to_string(root.join("dist/robots.txt")).unwrap();
+    assert_eq!(robots, "User-agent: *\nAllow: /\n");
+
+    // No seo config at all still gets the always-on defaults: viewport
+    // and a default-permissive robots meta.
+    let html = fs::read_to_string(root.join("dist/index.html")).unwrap();
+    assert!(html.contains("<meta name=\"viewport\""));
+    assert!(html.contains("<meta name=\"robots\" content=\"index, follow\">"));
+    assert!(!html.contains("rel=\"canonical\""));
+}

@@ -195,6 +195,7 @@ resource this project doesn't have yet.
 | Full-stack example (web ↔ backend over a declared contract) | Implemented | `examples/hello-fullstack`, checked at the HTTP, process-lifecycle, and real-browser levels |
 | Local build cache | Implemented | Content-addressed, scoped (see [docs/caching.md](docs/caching.md)) |
 | Component composition (one component's rendered output embedded in another's) | Implemented | `composes` in `component.yaml`; `web-static` only; see [ADR 0010](docs/decisions/0010-component-composition-via-slots.md) and `examples/navbar-demo`. A slot's inputs are static, not interpolated from the parent's own inputs — see that ADR's Consequences |
+| SEO foundations (metadata, canonical, Open Graph, `robots.txt`, `sitemap.xml`, minimal JSON-LD, `omni seo check`/`report`) | Implemented | Honestly scoped to `web-static`'s real one-page output — see [ADR 0014](docs/decisions/0014-seo-foundations.md) and [docs/seo.md](docs/seo.md) |
 | `omni test` | Partial | Reports honestly that no adapter implements the `test` operation yet — never fakes a pass |
 | Parallel build scheduling across targets | Implemented | `omni.yaml`'s `build.parallel: true` builds independent targets concurrently (one OS thread each); default stays `false` (sequential, unchanged). Does not parallelize within one target's own component graph yet |
 | Third-party adapter trust/enablement | Planned | Only adapters this repository ships and reviews can run today |
@@ -470,6 +471,8 @@ walkthrough of the first four:
 | `omni test` | Validates the project and asks each enabled target's adapter to run its `test` operation. No shipped adapter implements `test` yet — reported honestly, never faked. |
 | `omni package <target\|all>` | Archives an already-built target's `dist/<target>/` into `dist/<target>.zip`. Run `omni build <target>` first — packaging and building are separate, explicit steps. Generic across every target; not adapter-specific. |
 | `omni clean` | Removes the project's build output directory, after verifying it resolves strictly inside the project root. |
+| `omni seo check <target> [--json]` | Real technical-SEO checks against an already-built target's `index.html` (title, description, viewport, canonical, single `<h1>`, image `alt` text, indexability). Exits non-zero on any failure — usable as a CI gate. See [docs/seo.md](docs/seo.md). |
+| `omni seo report <target> [--json]` | Same checks as `seo check`, always exits 0 — informational only. |
 
 All commands return a non-zero exit code on failure and print structured,
 stable-coded diagnostics (e.g. `E-RESOLVE-NO-IMPLEMENTATION`,
@@ -666,7 +669,7 @@ development and production behavior.
 
 ```sh
 cargo build --workspace
-cargo test --workspace      # 156 tests: unit + integration + adapter conformance + dev-process lifecycle + composition + node-backend + typescript-backend + parallel-build + android-gradle (real Gradle build skipped unless OMNIFORGE_RUN_ANDROID_E2E=1 — see ADR 0011)
+cargo test --workspace      # 163 tests: unit + integration + adapter conformance + dev-process lifecycle + composition + node-backend + typescript-backend + parallel-build + seo + android-gradle (real Gradle build skipped unless OMNIFORGE_RUN_ANDROID_E2E=1 — see ADR 0011)
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 bash scripts/verify.sh      # all of the above, plus end-to-end builds of all three examples

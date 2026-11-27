@@ -6,4 +6,5 @@ pub mod create;
 pub mod dev;
 pub mod doctor;
 pub mod package;
+pub mod seo;
 pub mod test;

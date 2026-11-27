@@ -68,6 +68,28 @@ pub enum Command {
     Package { target: String },
     /// Remove the project's build output directory.
     Clean,
+    /// Real, honest technical-SEO checks against an already-built target's
+    /// output. Never a ranking guarantee -- see docs/seo.md.
+    Seo {
+        #[command(subcommand)]
+        action: SeoAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SeoAction {
+    /// Run SEO checks and exit non-zero if any fail -- usable as a CI gate.
+    Check {
+        target: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Run the same checks, always exiting 0 -- informational only.
+    Report {
+        target: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -107,6 +129,10 @@ pub fn run() -> ExitCode {
         Command::Test => commands::test::run(&cwd),
         Command::Package { target } => commands::package::run(&cwd, &target),
         Command::Clean => commands::clean::run(&cwd),
+        Command::Seo { action } => match action {
+            SeoAction::Check { target, json } => commands::seo::check(&cwd, &target, json),
+            SeoAction::Report { target, json } => commands::seo::report(&cwd, &target, json),
+        },
     };
 
     ExitCode::from(code as u8)

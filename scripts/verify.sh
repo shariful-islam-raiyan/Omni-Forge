@@ -29,7 +29,10 @@ echo "==> building examples/hello-web"
   cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- check
   cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- build web
   test -f dist/web/index.html
+  test -f dist/web/robots.txt
+  test -f dist/web/sitemap.xml
   test -f dist/build-report.json
+  cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- seo check web
   cargo run -q -p omni-cli --manifest-path ../../Cargo.toml -- clean
 )
 

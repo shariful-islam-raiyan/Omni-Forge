@@ -10,3 +10,7 @@ root:
 public:
   css:
     - style.css
+
+seo:
+  description: "A minimal, real static site built by OmniForge's web-static adapter."
+  site_url: "https://example.com"

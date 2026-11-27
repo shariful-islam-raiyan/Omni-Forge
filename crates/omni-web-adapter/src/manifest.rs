@@ -10,6 +10,32 @@ pub struct WebAppManifest {
     pub root: RootRef,
     #[serde(default)]
     pub public: PublicAssets,
+    #[serde(default)]
+    pub seo: SeoConfig,
+}
+
+/// All fields optional, by design — see `docs/seo.md` for exactly what
+/// each one produces and `web-static`'s honest single-page scope (one
+/// rendered page, so no per-page duplicate-title/description checking,
+/// and `sitemap.xml` lists exactly one URL).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SeoConfig {
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Absolute base URL this page is deployed at (e.g.
+    /// `https://example.com`). Required to generate `sitemap.xml` and the
+    /// default canonical URL — without it, both are honestly skipped
+    /// rather than written with a guessed or relative URL.
+    #[serde(default)]
+    pub site_url: Option<String>,
+    #[serde(default)]
+    pub canonical_url: Option<String>,
+    #[serde(default)]
+    pub og_image: Option<String>,
+    #[serde(default)]
+    pub robots: Option<String>,
+    #[serde(default)]
+    pub lang: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

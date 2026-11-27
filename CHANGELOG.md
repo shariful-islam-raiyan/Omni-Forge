@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased — Honest SEO foundations for `web-static`
+
+- **New optional `seo:` block** in the web app manifest
+  (`specs/webapp.schema.json`, `omni.yaml`'s `web/app.yaml`): real,
+  config-driven `<meta name="description">`, `<link rel="canonical">`,
+  Open Graph tags, a minimal `WebSite` JSON-LD block, `robots.txt`, and
+  `sitemap.xml` — every field optional, nothing emitted with a guessed
+  value (`sitemap.xml`/canonical/JSON-LD are honestly skipped, with a
+  clear `I-WEB-SITEMAP-SKIPPED` diagnostic, when `seo.site_url` isn't
+  set, rather than written with a relative or placeholder URL). A
+  responsive viewport meta and a default-permissive `robots.txt` are now
+  always emitted, zero-config. See
+  [ADR 0014](docs/decisions/0014-seo-foundations.md) and `docs/seo.md`
+  for exactly what's covered and what's deliberately not (no SSR/SSG for
+  any other adapter, no multi-page sitemap, no schema.org types beyond
+  `WebSite` — this adapter only ever renders one page and has no data to
+  honestly back anything richer).
+- **New commands: `omni seo check <target>` / `omni seo report
+  <target>`.** Real checks against an already-built target's
+  `index.html` — title, description, viewport, canonical, single `<h1>`,
+  image `alt` text, indexability. `check` exits non-zero on any failure
+  (a real CI gate); `report` is the same analysis, always exiting 0.
+  `--json` output on both. Never claims a ranking outcome — only reports
+  presence/absence of real technical-SEO signals.
+- `examples/hello-web` now carries a real `seo:` block and passes `omni
+  seo check web` for real, exercised by `scripts/verify.sh`.
+
 ## Unreleased — A real TypeScript adapter, with genuine type-checking
 
 - **New adapter: `typescript-backend`.** Structurally identical to

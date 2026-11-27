@@ -130,7 +130,9 @@ resource (a toolchain, a sandboxing design) this milestone didn't produce.
 
 | Item | Status | Notes |
 |---|---|---|
-| Metadata/canonical URLs/sitemap/Open Graph/structured data/prerendering | Planned | None of this exists; `web-static` emits one page with a `<title>` and nothing else in `<head>` |
+| Metadata (description, viewport, robots), canonical URL, Open Graph, `robots.txt`, `sitemap.xml`, minimal `WebSite` JSON-LD | Implemented | `seo:` block in the web app manifest, `crates/omni-web-adapter/src/lib.rs::build_seo_head`/`build_robots_txt`/`build_sitemap_xml`; see [ADR 0014](decisions/0014-seo-foundations.md) and `docs/seo.md`. Honestly scoped to `web-static`'s real one-page output — `sitemap.xml`/canonical/JSON-LD need `seo.site_url` and are skipped (not guessed) without it |
+| `omni seo check`/`omni seo report` | Implemented | `crates/omni-cli/src/commands/seo.rs`: real checks (title, description, viewport, canonical, single `<h1>`, image `alt`, indexability) against already-built output; string-based heuristic, not a full HTML parser — documented as such |
+| Richer schema.org types (FAQPage, Product, LocalBusiness, Event), SSR/SSG, Lighthouse/Core Web Vitals integration, multi-page sitemap, `hreflang` alternates, image optimization | Planned/Unsupported | None of this exists; see `docs/seo.md`'s "What's explicitly NOT implemented" — several of these need data or multi-page support this adapter has no source for, by design, not oversight |
 
 ## Platform-native features (file access, notifications, permissions, device APIs)
 

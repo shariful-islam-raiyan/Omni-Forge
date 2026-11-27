@@ -26,6 +26,19 @@
         "js": { "type": "array", "items": { "type": "string" } },
         "assets": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "seo": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "All optional. See docs/seo.md for exactly what each field produces and this adapter's honest single-page scope.",
+      "properties": {
+        "description": { "type": "string", "minLength": 1 },
+        "site_url": { "type": "string", "minLength": 1, "description": "Absolute base URL this page is deployed at, e.g. https://example.com. Required to generate sitemap.xml and the default canonical URL; without it, both are honestly skipped rather than written with a guessed or relative URL." },
+        "canonical_url": { "type": "string", "minLength": 1, "description": "Overrides the canonical URL; defaults to site_url if omitted." },
+        "og_image": { "type": "string", "minLength": 1, "description": "Absolute URL or a path under public/assets/ for the Open Graph image." },
+        "robots": { "type": "string", "minLength": 1, "description": "The <meta name=robots> content attribute, e.g. 'index, follow' (default) or 'noindex, nofollow'." },
+        "lang": { "type": "string", "minLength": 1, "description": "The <html lang=...> value; defaults to 'en'." }
+      }
     }
   }
 }
