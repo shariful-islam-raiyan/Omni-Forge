@@ -4,19 +4,27 @@
 cargo test --workspace
 ```
 
-88 tests as of this writing, all passing, 0 ignored:
+165 tests as of this writing, all passing, 0 ignored (see `docs/roadmap.md`'s
+Testing section for the complete, continuously-updated breakdown — the
+table below covers the suites present since this project's earlier
+milestones; newer suites are listed in `docs/roadmap.md` and this
+project's `CHANGELOG.md` rather than duplicated here verbatim):
 
 | Suite | Count | What it covers |
 |---|---|---|
-| `omni-core` unit tests | 38 | path safety (`paths.rs`), cache key/store/restore (`cache.rs`), dependency graph ordering + cycle detection (`graph.rs`), project loading + semantic validation (`loader.rs`), JSON Schema validation incl. the adapter manifest schema (`schema.rs`), resolver success/failure paths (`resolver.rs`), diagnostics JSON round-tripping (`diagnostics.rs`), API contract parsing + validation (`spec/api_contract.rs`: valid doc, unknown schema version, missing responses, unknown HTTP method) |
+| `omni-core` unit tests | 50 | path safety (`paths.rs`, including a real adversarial symlink-escape test), cache key/store/restore (`cache.rs`), dependency graph ordering + cycle detection (`graph.rs`), project loading + semantic validation (`loader.rs`), JSON Schema validation incl. the adapter manifest schema (`schema.rs`), resolver success/failure paths (`resolver.rs`), diagnostics JSON round-tripping (`diagnostics.rs`), API contract parsing + validation (`spec/api_contract.rs`: valid doc, unknown schema version, missing responses, unknown HTTP method) |
 | `omni-core` fixture tests | 4 | `tests/fixtures.rs` against the static files in `fixtures/valid-projects` and `fixtures/invalid-projects` |
-| `omni-adapter-api` out-of-process mechanism tests | 11 | `process.rs`: malformed JSON response, non-zero exit with no response, hanging-process timeout, wrong protocol version, mismatched request id, a well-formed response accepted, a missing executable handled cleanly, the controlled-environment allowlist, and the materialized-script path-separator guard. All against a real resolved Python interpreter — none of this is mocked. |
-| `omni-web-adapter` unit tests | 4 | template substitution, HTML escaping, undeclared-placeholder rejection, Unicode passthrough (`template.rs`) |
-| `omni-web-adapter` integration tests | 4 | `tests/compile.rs`: a full synthetic project built end-to-end (escaped content, verified assets), a missing-required-input failure that produces zero partial output, a missing-public-asset failure, and adapter conformance |
-| `python-backend` adapter white-box tests | 8 | `crates/omni-cli/tests/python_backend_adapter.rs`: full round trip (real script executed, artifacts verified), missing toolchain simulated deterministically, missing required input, unsupported operation sent to the real adapter script, an unsafe component source path rejected, the backend script's own non-zero exit, the backend script's own inner timeout, and adapter conformance |
-| `omni-cli` integration tests | 11 | `tests/cli.rs`: `--version`/`--help`, full `create → check → build → clean` round trip including a cache-hit rebuild, invalid project name rejection, refusing to overwrite a non-empty directory, invalid schema version, missing project file, a build failure from a missing required input, an unknown target name, `adapter list`/`doctor` without a project, duplicate component name detection, and a full `backend`-target round trip through the real compiled binary |
+| `omni-adapter-api` out-of-process mechanism tests | 23 | `process.rs`: malformed JSON response, non-zero exit with no response, hanging-process timeout, wrong protocol version, mismatched request id, a well-formed response accepted, a missing executable handled cleanly, the controlled-environment allowlist, the materialized-script path-separator guard, `run_tool`/`controlled_env_with` (used by `android-gradle`), and the Windows verbatim-path (`\\?\`) stripping helper. All against real resolved interpreters where relevant — none of this is mocked. |
+| `omni-web-adapter` unit tests | 5 | template substitution, HTML escaping, undeclared-placeholder rejection, Unicode passthrough (`template.rs`) |
+| `omni-web-adapter` integration tests | 7 | `tests/compile.rs`: a full synthetic project built end-to-end (escaped content, verified assets), a missing-required-input failure that produces zero partial output, a missing-public-asset failure, composed-component rendering, adapter conformance, and two real SEO tests (full `seo:` config producing real meta tags/robots.txt/sitemap.xml; no `site_url` honestly skipping sitemap generation) |
+| `python-backend`/`node-backend`/`typescript-backend` adapter white-box tests | 24 (8 each) | `crates/omni-cli/tests/{python,node,typescript}_backend_adapter.rs`: full round trip (real script/compiler executed, artifacts verified), missing toolchain simulated deterministically, missing required input, unsupported operation sent to the real adapter script, an unsafe component source path rejected, a non-zero exit/genuine type error, an inner timeout, and adapter conformance. `typescript-backend`'s round-trip additionally proves genuine `tsc` type-checking via a real `TS2322` error. |
+| `android-gradle` adapter tests | 11 | real Gradle invocation gated behind `OMNIFORGE_RUN_ANDROID_E2E=1` — see ADR 0011 |
+| `omni-cli` integration tests | 16+ | `tests/cli.rs`: `--version`/`--help`, full `create → check → build → clean` round trip including a cache-hit rebuild, invalid project name rejection, refusing to overwrite a non-empty directory, invalid schema version, missing project file, a build failure from a missing required input, an unknown target name, `adapter list`/`doctor` without a project, duplicate component name detection, a full `backend`-target round trip through the real compiled binary, `package`'s real zip round-trip, and a zip-entry path-safety regression test |
 | `omni-cli` build-all partial-failure test | 1 | `tests/build_all_partial_failure.rs`: a project with `web` working and `backend` enabled-but-unimplemented; asserts `omni build all` exits non-zero, `web`'s artifacts survive `backend`'s failure, and `build-report.json` reports each target's status independently |
-| `hello-fullstack` end-to-end HTTP tests | 7 | `tests/fullstack_http.rs`: builds the real `backend` target, starts the packaged Python script as a real HTTP server via a test-only process harness (`tests/support/mod.rs`), and makes real HTTP requests against it — a successful request validated against the declared contract, invalid request data (400), an unknown route (404), a backend startup failure, a backend that never becomes ready (startup timeout), a backend that accepts a connection but never responds (HTTP read timeout), and a deliberately contract-violating response correctly detected as invalid. See `examples/hello-fullstack/README.md` for exactly what this does and does not cover (no real browser is driven). |
+| `omni-cli` parallel-build tests | 2 | `tests/parallel_build.rs`: two real, different adapters (`web-static` + `node-backend`) built concurrently with verified correct output, plus failure isolation under concurrency |
+| `omni-cli` SEO CLI tests | 5 | `tests/seo_check.rs`: `omni seo check`/`omni seo report` against real built output — a passing page, a failing page (missing description/h1/canonical), `report`'s always-zero exit code, a clear error when the target was never built, and valid `--json` output |
+| `hello-fullstack` end-to-end HTTP tests | 9 | `tests/fullstack_http.rs`: builds the real `backend` target, starts the packaged Python script as a real HTTP server via a test-only process harness (`tests/support/mod.rs`), and makes real HTTP requests against it — a successful request validated against the declared contract, invalid request data (400), an unknown route (404), a backend startup failure, a backend that never becomes ready (startup timeout), a backend that accepts a connection but never responds (HTTP read timeout), and contract-violation/cache-busting checks. See `examples/hello-fullstack/README.md` for exactly what this does and does not cover (no real browser is driven). |
+| `omni dev` lifecycle tests | 8 | `tests/dev_lifecycle.rs`: real process start/stop/port-conflict/crash-detection coverage — see `docs/roadmap.md` |
 
 Run formatting and lints the same way CI does:
 
@@ -25,9 +33,10 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Or run everything, plus an end-to-end build of `examples/hello-web`,
-`examples/hello-backend`, and `examples/hello-fullstack` (both targets),
-with:
+Or run everything, plus an end-to-end build of every example
+(`hello-web` + `omni seo check`, `hello-backend`, `hello-node`,
+`hello-typescript`, `hello-fullstack`, `hello-android` if the toolchain
+is present, `navbar-demo`), with:
 
 ```sh
 bash scripts/verify.sh
