@@ -6,7 +6,7 @@ assignment. This file is a snapshot updated as milestones land — treat
 this file exists to make "what's done, what's next" visible without
 reconstructing it from git log.
 
-**Last updated:** 2026-11-27, after commit `aaae489`.
+**Last updated:** 2026-11-27, after commit `3d0411c`.
 
 ## Repository
 
@@ -23,73 +23,87 @@ reconstructing it from git log.
 | Node.js / npm | Yes | v24.16.0 / 11.13.0 |
 | Python | Yes, via `py` launcher | 3.14.0; bare `python`/`python3` are broken Store aliases on this machine |
 | Android SDK/JDK/Gradle | Yes, via Android Studio's default install paths | Not on PATH directly; discovered by `omni-android-adapter`'s own toolchain detection |
-| TypeScript (`tsc`) | No *global* install | Resolved on demand via an `npx`-equivalent (see ADR 0013); real builds succeed anyway |
-| Go | Installation attempted via `winget` mid-session | See `IMPLEMENTATION_PROGRESS.md` for the outcome |
+| TypeScript (`tsc`) | No *global* install | Resolved on demand via an `npx`-equivalent (ADR 0013); real builds succeed anyway |
+| Go | **Yes, installed this session** | `winget install --id GoLang.Go`, official publisher; 1.27.4; needs a fresh shell session's PATH, or explicit `PATH="$PATH:/c/Program Files/Go/bin"` in this one |
 | Java/Gradle/GCC/Clang/MSVC (standalone, not via Android Studio) | No | Not on PATH |
 | GnuCOBOL | No | Not installed |
 | Xcode / macOS / iOS toolchain | N/A | This machine is Windows; genuinely cannot be verified here |
 
 ## Milestones completed this continuous-execution session
 
-1. `node-backend` adapter (commit `21ed9fb`) — second out-of-process
-   `backend` adapter, real Node execution, fixed a real Windows
-   `\\?\`-path bug in `omni_adapter_api::process` along the way.
-2. Parallel build scheduling across targets (commit `65aeef3`) —
-   `omni.yaml`'s `build.parallel: true` now genuinely builds independent
-   targets on separate OS threads; default stays sequential.
-3. `typescript-backend` adapter (commit `ce3dbd0`) — real `tsc`
-   type-checking (not just transpiling), proven by a dedicated test that
-   a genuine type error fails the build. Fixed a real Windows `.cmd`-spawn
-   bug (Node's hardened `child_process`) without introducing `shell: true`
-   anywhere.
-4. Implementation tracking files (commit `acc99fa`) — this file and its
-   three companions.
-5. SEO foundations for `web-static` (commit `bab936d`) — real, optional
-   `seo:` manifest block producing metadata/canonical/Open Graph/
-   `robots.txt`/`sitemap.xml`/minimal JSON-LD, plus `omni seo check`/
-   `omni seo report` commands. Honestly scoped to the adapter's real
-   one-page output — see ADR 0014 and `docs/seo.md`.
-6. Real adversarial security tests + a doc-accuracy fix (commit
-   `4154727`) — a genuine symlink-escape test against `safe_join`
-   (confirmed real on this machine, not hypothetical) that corrected an
-   overclaiming doc comment, plus a zip-entry path-safety regression test
-   for `omni package`.
-7. CI matrix expansion (commit `aaae489`) — added `macos-latest` to the
-   main test job, added Node.js to that same job (previously only the
-   browser-e2e job had it) so `node-backend`/`typescript-backend` tests
-   run for real there, and added explicit build/verify steps for
-   `hello-node`/`hello-typescript`/`seo check`. Configured and validated
-   as syntactically correct YAML; **not yet observed to actually run** —
-   this environment cannot trigger or watch a GitHub Actions run.
+1. `node-backend` adapter (`21ed9fb`) — second out-of-process `backend`
+   adapter; fixed a real Windows `\\?\`-path bug.
+2. Parallel build scheduling (`65aeef3`) — `build.parallel: true` now
+   genuinely builds independent targets on separate OS threads.
+3. `typescript-backend` adapter (`ce3dbd0`) — real `tsc` type-checking;
+   fixed a real Windows `.cmd`-spawn bug without using `shell: true`.
+4. Implementation tracking files (`acc99fa`).
+5. SEO foundations for `web-static` (`bab936d`) — real metadata,
+   `robots.txt`, `sitemap.xml`, `omni seo check`/`report`.
+6. Real adversarial security tests (`4154727`) — a confirmed real
+   symlink-escape against `safe_join`, fixing an overclaiming doc
+   comment; a zip-entry path-safety regression test.
+7. CI matrix expansion (`aaae489`) — `macos-latest` added, Node.js added
+   to the main gate. Configured, not yet observed to run.
+8. `docs/testing.md` accuracy fix (`1e564f9`).
+9. `omni adapter validate` (`a1bed80`) — real schema+conformance
+   validation for any adapter manifest on disk, no registration needed.
+10. `go-backend` adapter (`48df1de`) — real `go build` to a native
+    executable, run directly. Go installed mid-session via `winget`.
+    Found and fixed a second Windows env-propagation bug (`%LocalAppData%`).
+11. `windows-desktop` adapter (`3d0411c`) — **the first non-web/backend/
+    android target.** Real `rustc` → a real native PE32+ executable, run
+    directly. New crate `omni-windows-adapter`. Found and fixed a real
+    gap: `validate()` wasn't actually invoking the compiler.
 
 See `CHANGELOG.md` for full per-milestone detail and `docs/decisions/`
-(ADRs 0012–0014) for the design rationale behind each.
+(ADRs 0012–0016) for the design rationale behind each.
 
 ## Test baseline
 
-`cargo test --workspace`: **165 passing, 0 failed** (grew from 138 at the
+`cargo test --workspace`: **188 passing, 0 failed** (grew from 138 at the
 start of this session). `cargo fmt --all -- --check` and
 `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
 clean. `bash scripts/verify.sh`: passes end to end, including real builds
-of every example (`hello-web`, `hello-backend`, `hello-node`,
-`hello-typescript`, `hello-fullstack`, `hello-android` — a real Android
-APK — and `navbar-demo`), plus a real `omni seo check web` pass.
+of every example (`hello-web` + `omni seo check`, `hello-backend`,
+`hello-node`, `hello-typescript`, `hello-go`, `hello-windows`,
+`hello-fullstack`, `hello-android` — a real Android APK — and
+`navbar-demo`).
+
+## Adapters now real and tested (7 total, 3 architectural styles)
+
+| Adapter | Target | Style | Real toolchain |
+|---|---|---|---|
+| `web-static` | `web` | in-process | none |
+| `python-backend` | `backend` | out-of-process | Python 3 |
+| `node-backend` | `backend` | out-of-process | Node.js |
+| `typescript-backend` | `backend` | out-of-process | Node.js + `tsc` |
+| `android-gradle` | `android` | in-process, shells out | Gradle/SDK/JDK |
+| `go-backend` | `backend` | out-of-process, compiles to native | Go |
+| `windows-desktop` | `windows` | in-process, shells out, compiles to native | `rustc` |
 
 ## What is genuinely NOT done (see `IMPLEMENTATION_BLOCKERS.md` for why)
 
-- Go (attempt in progress this session — see `IMPLEMENTATION_PROGRESS.md`),
-  Rust-application, C, C++, Java, Kotlin, Dart, Swift, COBOL adapters:
-  not complete. `ProcessAdapter` is proven reusable (three real adapters
-  now use it); the rest specifically need toolchains not present on this
-  machine.
-- iOS, Windows desktop, Linux desktop, macOS desktop adapters: not
-  started. Genuinely need platforms/toolchains this machine doesn't have.
-- Adapter SDK as a separate crate/scaffolding command (`omni adapter
-  create`): not started.
-- Linux/macOS-specific CI jobs actually exercising the Android/iOS/
-  desktop story: not started beyond the matrix expansion in milestone 7
-  above.
+- C, C++, Java, Kotlin, Dart, Swift, COBOL, Rust-as-a-backend adapters:
+  not started — need toolchains not present on this machine.
+- iOS, Linux desktop, macOS desktop adapters: not started — need an OS
+  this machine does not have, not merely a missing install.
+- Adapter SDK as a separate scaffolded crate/`omni adapter create`
+  (project *generation*, as opposed to `omni adapter validate`'s
+  validation, which is done): not started.
+- A real GUI surface for `windows-desktop` (a Win32 message box or
+  window): architecturally compatible, not attempted — see ADR 0016.
+- Component system advanced features (typed outputs actually consumed
+  across components, event contracts, multiple-implementation
+  selection): still Partial, unchanged this session — deliberately not
+  attempted without being able to validate a new syntax/semantics design
+  against user intent first.
+- Linux/macOS-specific CI jobs actually exercising the Android/desktop
+  story beyond the matrix expansion already done: not started.
 
 ## Next concrete task
 
-See `IMPLEMENTATION_PROGRESS.md`'s "In progress / next up" section.
+No single next task is queued — the highest-value remaining work
+(additional language/platform adapters) is blocked on toolchains/OSes
+this machine doesn't have. See `IMPLEMENTATION_BLOCKERS.md`'s "what would
+unblock each" column for the concrete next step per item.
