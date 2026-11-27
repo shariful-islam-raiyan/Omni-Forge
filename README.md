@@ -188,6 +188,7 @@ resource this project doesn't have yet.
 | `web-static` adapter | Implemented | In-process, escaped-template rendering only |
 | `python-backend` adapter | Implemented | Real Python subprocess, stdlib-only |
 | `node-backend` adapter | Implemented (Windows verified; macOS/Linux unverified) | Real Node.js subprocess, zero npm dependencies; same `backend` target as `python-backend` — see [ADR 0012](docs/decisions/0012-node-backend-adapter.md) and `examples/hello-node` |
+| `typescript-backend` adapter | Implemented (Windows verified; macOS/Linux unverified) | Real `tsc` type-checking (not just transpiling) + compile + real Node execution, same `backend` target — see [ADR 0013](docs/decisions/0013-typescript-backend-adapter.md) and `examples/hello-typescript` |
 | `android-gradle` adapter | Implemented (Windows verified; macOS/Linux unverified) | Real Gradle invocation produces a real, verified debug APK; see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) and `examples/hello-android` |
 | Unified `omni dev` (multi-target, real process lifecycle) | Implemented | Graceful-then-hard-kill shutdown, verified against the real compiled binary with a genuine OS signal |
 | API contract format + validation | Implemented | A **custom** format (not OpenAPI — see below), with build-time validation and reusable request/response validators |
@@ -201,7 +202,7 @@ resource this project doesn't have yet.
 | Desktop targets (Windows/Linux/macOS) | Planned | Vocabulary exists (`omni.yaml` accepts the target names); no adapter |
 | Android target | Implemented (Windows verified; macOS/Linux unverified) | `android-gradle` adapter — real Gradle build, real APK, see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) |
 | iOS target | Planned | Vocabulary only, no adapter — genuinely requires a macOS/Xcode environment this project's development machine (Windows) does not have |
-| Additional language adapters (Go/Rust/C/C++/Java/Kotlin/Dart/Swift/COBOL) | Planned | `ProcessAdapter` is language-neutral and reusable — proven by `node-backend` (above), the second out-of-process adapter; none of these others exist yet |
+| Additional language adapters (Go/Rust/C/C++/Java/Kotlin/Dart/Swift/COBOL) | Planned | `ProcessAdapter` is language-neutral and reusable — proven by `node-backend` and `typescript-backend` (above); none of these others exist yet |
 | Real OpenAPI 3.1 document support | Planned | The current contract format is deliberately smaller and custom instead — see [ADR 0008](docs/decisions/0008-api-contract-is-a-custom-format.md) |
 
 The full, continuously-updated, item-by-item table (every row backed by a
@@ -215,6 +216,7 @@ README's table as a summary, that one as the source of truth.
 | `web` | `web-static` | **Implemented** | A real static site: HTML rendered from escaped templates, copied CSS/JS/assets, a build manifest |
 | `backend` | `python-backend` | **Implemented** | A real, packaged, runnable Python application (`app/`, `run.sh`/`run.bat`, captured output) — requires a Python 3 interpreter on `PATH` |
 | `backend` | `node-backend` | **Implemented** (Windows verified; macOS/Linux unverified) | A real, packaged, runnable Node.js application, same artifact layout as `python-backend` — requires a Node.js interpreter on `PATH`; see [ADR 0012](docs/decisions/0012-node-backend-adapter.md) |
+| `backend` | `typescript-backend` | **Implemented** (Windows verified; macOS/Linux unverified) | Real `tsc` type-checking + compile + Node execution — requires Node.js + npm (TypeScript itself resolved on demand); see [ADR 0013](docs/decisions/0013-typescript-backend-adapter.md) |
 | `android` | `android-gradle` | **Implemented** (Windows verified; macOS/Linux unverified) | A real, debug-signed APK — requires a real local Android SDK, JDK, and a discoverable Gradle distribution (`omni doctor` reports exactly what was found); see [ADR 0011](docs/decisions/0011-android-gradle-adapter.md) |
 | `ios`, `windows`, `linux`, `macos` | — | **Not implemented** | These are valid target *names* (so `omni.yaml` won't reject them for existing), but enabling one with no adapter correctly fails with `E-BUILD-ADAPTER-UNAVAILABLE` rather than pretending to succeed |
 
@@ -236,13 +238,14 @@ To be unambiguous about what **not** to expect from the current release:
   from a component's declared message — no emulator/device install, no
   release signing, no `.aab` output, and not a UI framework. See
   [ADR 0011](docs/decisions/0011-android-gradle-adapter.md).
-- **No Go, Rust-as-a-backend, TypeScript, Dart, C, C++, Java, Swift, or
-  COBOL adapter exists.** `ProcessAdapter` (the out-of-process execution
+- **No Go, Rust-as-a-backend, Dart, C, C++, Java, Swift, or COBOL
+  adapter exists.** `ProcessAdapter` (the out-of-process execution
   mechanism) is language-neutral and designed to be reused for any of
-  these — proven concretely by `node-backend` (a second, independent
-  out-of-process adapter requiring zero changes to `omni-adapter-api`;
-  see [ADR 0012](docs/decisions/0012-node-backend-adapter.md)) — but none
-  of these *other* languages has actually been built and tested yet.
+  these — proven concretely by `node-backend` and `typescript-backend`
+  (two independent out-of-process adapters requiring zero changes to
+  `omni-adapter-api`; see [ADR 0012](docs/decisions/0012-node-backend-adapter.md)/
+  [ADR 0013](docs/decisions/0013-typescript-backend-adapter.md)) — but
+  none of these *other* languages has actually been built and tested yet.
   (Kotlin is used by the real `android-gradle` adapter above, but only to
   generate one fixed Activity template — not as a general-purpose adapter
   language.)
@@ -663,7 +666,7 @@ development and production behavior.
 
 ```sh
 cargo build --workspace
-cargo test --workspace      # 146 tests: unit + integration + adapter conformance + dev-process lifecycle + composition + node-backend + android-gradle (real Gradle build skipped unless OMNIFORGE_RUN_ANDROID_E2E=1 — see ADR 0011)
+cargo test --workspace      # 156 tests: unit + integration + adapter conformance + dev-process lifecycle + composition + node-backend + typescript-backend + parallel-build + android-gradle (real Gradle build skipped unless OMNIFORGE_RUN_ANDROID_E2E=1 — see ADR 0011)
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 bash scripts/verify.sh      # all of the above, plus end-to-end builds of all three examples

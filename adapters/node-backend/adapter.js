@@ -279,7 +279,7 @@ function mergeInputs(iface, entryInputs, componentName) {
 /** Returns {stdoutText, diagnostics}. diagnostics containing an error means
  * the script did not produce usable output. */
 function runBackendScript(sourcePath, configPath, projectRoot, timeoutS, componentName) {
-  const timeoutMs = Math.max(1000, timeoutS * 1000);
+  const timeoutMs = Math.round(Math.max(1000, timeoutS * 1000));
   let result;
   try {
     result = cp.spawnSync(

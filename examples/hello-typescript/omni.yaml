@@ -1,0 +1,35 @@
+schema: omniforge.dev/project/v1
+
+project:
+  name: hello-typescript
+  version: 0.1.0
+
+targets:
+  web:
+    enabled: false
+  android:
+    enabled: false
+  ios:
+    enabled: false
+  windows:
+    enabled: false
+  linux:
+    enabled: false
+  macos:
+    enabled: false
+  backend:
+    enabled: true
+    adapter: typescript-backend
+    entry: backend/service.json
+
+components:
+  directory: lib/components
+
+build:
+  output: dist
+  cache: true
+  parallel: false
+
+security:
+  strict_adapter_permissions: true
+  audit_dependencies: true

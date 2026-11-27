@@ -6,3 +6,4 @@
 
 pub mod node_backend;
 pub mod python_backend;
+pub mod typescript_backend;

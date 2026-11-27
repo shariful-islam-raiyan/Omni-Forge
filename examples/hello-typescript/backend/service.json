@@ -1,0 +1,8 @@
+{
+  "schema": "omniforge.dev/backend-app/v1",
+  "service": "svc.greeter",
+  "inputs": {
+    "greeting": "Hello from hello-typescript, built by OmniForge's typescript-backend adapter!",
+    "count": 3
+  }
+}

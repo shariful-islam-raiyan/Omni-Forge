@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — A real TypeScript adapter, with genuine type-checking
+
+- **New adapter: `typescript-backend`.** Structurally identical to
+  `node-backend` (same wire protocol, same artifact layout) with one real
+  difference: it genuinely type-checks and compiles the component's `.ts`
+  source with a real `tsc` before running it — `validate` runs
+  `tsc --noEmit`, `compile` runs `tsc --strict` for real, both producing
+  genuine compiler diagnostics (proven by a dedicated test: a real
+  `TS2322` type error correctly fails the build). See
+  [ADR 0013](docs/decisions/0013-typescript-backend-adapter.md),
+  `examples/hello-typescript`, and
+  `crates/omni-cli/tests/typescript_backend_adapter.rs` (8 tests).
+- **Real Windows bug found and fixed**: Node's `child_process` refuses to
+  spawn a `.cmd`/`.bat` file (what a globally-installed `tsc` or the `npx`
+  launcher both are on Windows) without `shell: true` — this project never
+  uses `shell: true`. Fixed by invoking npm's own bundled `npx-cli.js`
+  (a plain `.js` file) directly with `node` instead, on Windows only; off
+  Windows a bare `tsc`/`npx` already works. See ADR 0013 for the full
+  story, including why `omni doctor` deliberately does not check `tsc`
+  availability for this adapter (it would report a false `MISSING`).
+- Fixed a latent float-vs-integer `timeout` bug shared by `node-backend`'s
+  and `typescript-backend`'s inner `child_process.spawnSync` calls
+  (`Node's timeout option must be an unsigned integer`) — found while
+  exercising `typescript-backend`'s longer, split timeout budget for
+  real; both are now rounded.
+
 ## Unreleased — Parallel build scheduling across targets
 
 - **`omni.yaml`'s `build.parallel` field is now acted on** (previously

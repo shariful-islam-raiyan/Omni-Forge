@@ -44,14 +44,15 @@ In rough priority order (not a committed schedule):
    straightforward for a third party to write a new language/target
    adapter against a documented, versioned protocol, with a conformance
    test suite to check against.
-2. **Done: a second real backend-language adapter** — `node-backend`
-   (Node.js, reusing the existing `ProcessAdapter` mechanism unchanged),
-   with its own real end-to-end example (`examples/hello-node`); see
-   [ADR 0012](docs/decisions/0012-node-backend-adapter.md). A TypeScript
-   adapter (type-check + compile via `tsc`) is a natural next step on the
-   same pattern, not yet started. A Go adapter remains a candidate too, but
-   no Go toolchain exists on this project's own development machine to
-   build and test one against yet.
+2. **Done: a second and third real backend-language adapter** —
+   `node-backend` (Node.js) and `typescript-backend` (real `tsc`
+   type-checking + compile), both reusing the existing `ProcessAdapter`
+   mechanism unchanged, each with its own real end-to-end example
+   (`examples/hello-node`, `examples/hello-typescript`); see
+   [ADR 0012](docs/decisions/0012-node-backend-adapter.md)/
+   [ADR 0013](docs/decisions/0013-typescript-backend-adapter.md). A Go
+   adapter remains a candidate, but no Go toolchain exists on this
+   project's own development machine to build and test one against yet.
 3. **Parallel build scheduling** across independent targets — the
    dependency graph is already schedule-ready; no scheduler exists yet.
 4. **Desktop and iOS targets** (Windows, Linux, macOS desktop; iOS) —

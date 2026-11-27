@@ -66,7 +66,7 @@ become build artifacts under `dist/backend/` — see
 [adapter-protocol.md](adapter-protocol.md) for exactly what the adapter
 sends it and [caching.md](caching.md) for how its output is cached.
 
-Two real adapters implement this today, both targeting `backend`; a
+Three real adapters implement this today, all targeting `backend`; a
 component picks one via `implementations.backend.adapter`:
 
 - **`python-backend`** (`<python> script.py run-config.json`) — see the
@@ -76,6 +76,10 @@ component picks one via `implementations.backend.adapter`:
   mechanism with a different interpreter and script; see
   [ADR 0012](decisions/0012-node-backend-adapter.md) and
   `examples/hello-node`.
+- **`typescript-backend`** (source is `.ts`, genuinely type-checked and
+  compiled by a real `tsc` before running with `node`) — see
+  [ADR 0013](decisions/0013-typescript-backend-adapter.md) and
+  `examples/hello-typescript`.
 
 Example (the full version lives in `examples/hello-backend`):
 

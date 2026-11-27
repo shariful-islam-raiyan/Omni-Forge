@@ -1,0 +1,37 @@
+schema: omniforge.dev/adapter/v1
+id: typescript-backend
+version: 0.1.0
+protocol: out-of-process/v1
+
+capabilities:
+  languages:
+    - typescript
+  component_kinds:
+    - service
+  targets:
+    - backend
+  operations:
+    - validate
+    - compile
+  # 'node' runs this adapter's own wire-protocol script (adapter.js) and
+  # the compiled JavaScript output -- the one thing 'omni doctor' can
+  # usefully check with its generic "try this executable on PATH" probe.
+  # The TypeScript compiler itself is deliberately NOT listed here: this
+  # adapter resolves it with its own multi-step fallback logic (direct
+  # `tsc`, then an on-demand, no-shell-safe `npx`-equivalent -- see
+  # ADR 0013), which a simple PATH check cannot replicate. Declaring a bare
+  # "tsc" requirement here would make 'omni doctor' report a false
+  # "MISSING" on any machine without a *global* tsc install, even though a
+  # real build would still succeed via the fallback. The real, honest
+  # signal is the build/validate-time result itself.
+  requires:
+    - node
+
+# Same "runnable-package convention" as node-backend/python-backend (see
+# docs/adapter-protocol.md) -- the compiled JavaScript under app/ is what
+# actually runs, exactly like node-backend's build output.
+dev:
+  args: ["--serve", "{port}"]
+  ready_stdout_prefix: "LISTENING"
+  ready_timeout_ms: 10000
+  stop_grace_ms: 3000
