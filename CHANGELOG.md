@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — CI matrix expansion (macOS; Node.js in the main gate)
+
+- `.github/workflows/ci.yml`'s main `test` job now also runs on
+  `macos-latest` (previously `ubuntu-latest`/`windows-latest` only), and
+  installs Node.js explicitly (previously only the separate `browser-e2e`
+  job did) so `node-backend`/`typescript-backend`'s tests run for real in
+  CI rather than silently skipping. Added explicit build-and-verify steps
+  for `examples/hello-node` and `examples/hello-typescript` (real `node`/
+  `tsc` execution, real artifact checks), and an `omni seo check web` step
+  against `examples/hello-web`. **Configured, not yet observed to run**:
+  this environment has no way to trigger or watch a GitHub Actions run
+  complete, so this is real, validated-as-syntactically-correct YAML
+  (parsed with this project's own `serde_yaml` dependency), not a
+  "verified green" claim — the next push to `main` is the real test.
+
 ## Unreleased — Honest SEO foundations for `web-static`
 
 - **New optional `seo:` block** in the web app manifest
